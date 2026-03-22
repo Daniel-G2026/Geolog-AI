@@ -1,11 +1,11 @@
-COHESIVE_TERMS = ["clay", "silty clay", "clayey silt","silt"]
-COHESIONLESS_TERMS = ["sand", "gravel", "silty sand", "sandy silt", "sand and silt"]
+COHESIVE_TERMS = ["silty clay", "clayey silt","silt","clay"]
+COHESIONLESS_TERMS = ["sand and silt", "silty sand", "sandy silt", "gravel","sand"]
 
 
 def get_consistency_density(soil_name: str,n_value: int):
     soil_lower = soil_name.lower()
     if soil_lower.endswith("till"):
-        soil_lower = soil_lower.replace("till","")
+        soil_lower = soil_lower.replace("till","").strip()
     if any(term in soil_lower for term in COHESIONLESS_TERMS ):
         if 0 <= n_value < 4:
             return "very loose"
@@ -16,9 +16,9 @@ def get_consistency_density(soil_name: str,n_value: int):
         elif n_value == 10:
             return "loose to medium dense"
         elif 10 < n_value < 30:
-            return "medium dense"
+            return "Compact"
         elif n_value == 30:
-            return "medium dense to dense"
+            return "Compact to dense"
         elif 30 < n_value < 50:
             return "dense"
         elif n_value == 50:
