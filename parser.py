@@ -120,7 +120,7 @@ def extract_fill(transcript: str):
     
 
 
-def parse_transcript(transcript:str):
+def parse_transcript(transcript:str) -> dict:
     
     if not is_relevant(transcript):
         return {
@@ -130,6 +130,7 @@ def parse_transcript(transcript:str):
             "color": None,
             "moisture": None,
             "fill": False,
+            "split_layer": False,
             "flags": ["Transcript not recognized as a soil description — manual input required"]
 
 
@@ -154,5 +155,6 @@ def parse_transcript(transcript:str):
             "color": colour,
             "moisture": moisture,
             "fill": fill,
+            "split_layer": isinstance(soil_name,list),
             "flags": flags
         }
