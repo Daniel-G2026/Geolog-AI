@@ -88,6 +88,22 @@ def extract_components(transcript: str):
             
     return (components, None) if components else ([], None)
 
+def filter_components(components: list, soil_name: str) -> list:
+    # Get individual words from the soil name
+    soil_name_words = soil_name.lower().split()
+    
+    filtered = []
+    for component in components:
+        # Get the soil word from the component (last word)
+        # e.g. "trace sand" → "sand", "trace to some clay" → "clay"
+        component_soil_word = component.split()[-1]
+        
+        # Only keep component if its soil word isn't already in the primary soil name
+        if component_soil_word not in soil_name_words:
+            filtered.append(component)
+    
+    return filtered
+
 
 def extract_inclusions(transcript: str):
     transcript_lower = transcript.lower()
@@ -139,6 +155,10 @@ def parse_transcript(transcript:str) -> dict:
         
         components, component_flag = extract_components(transcript)
         soil_name, soil_flag = extract_soil_name(transcript,components)
+
+        if isinstance(soil_name, str):
+            components = filter_components(components,soil_name)
+            
         inclusion, inclusion_flag = extract_inclusions(transcript)
         colour, colour_flag = extract_color(transcript)
         moisture, moisture_flag = extract_moisture(transcript)

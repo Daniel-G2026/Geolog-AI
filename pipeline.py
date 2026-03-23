@@ -17,10 +17,14 @@ RULES:
 4. Color: use exactly as provided
 5. Moisture: use exactly as provided
 6. Consistency/density: use exactly as provided — do not change it
-7. FILL prefix when fill is true: FILL: soil type, components, inclusions, color, moisture, consistency.
+7. FILL prefix when fill is true: start with "FILL:" then list components, 
+   inclusions, color, moisture, consistency. Do NOT include the soil_name 
+   as a separate capitalized header. Do NOT add a colon after the soil type.
 8. Transitional soils: use TO between names
 9. End every description with a period
-10. If split_layer is true: return MANUAL REVIEW REQUIRED and describe each layer separately
+10. 10. If split_layer is true: return exactly "MANUAL REVIEW REQUIRED" on the 
+    first line, then list each soil name from soil_name array as a separate 
+    entry with its shared properties. Format: "- [SOIL NAME]: color, moisture, consistency."
 
 Return only the formatted description string. No explanation, no extra text."""
 load_dotenv()
@@ -31,7 +35,7 @@ client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 def combination(transcript, blow_counts: list, pen_depths: list):
     soil_data = parse_transcript(transcript)
-    if soil_data["flags"]:
+    if soil_data["soil_name"] is None:
         return {
         "description": None,
         "n_value_log": None,
@@ -60,7 +64,7 @@ def combination(transcript, blow_counts: list, pen_depths: list):
     return {
         "description": message.content[0].text,
         "n_value_log": blow_count_data["n_value_log"],
-        "flags": []
+        "flags": soil_data["flags"]
     }
 def sort_components(components: list) -> list:
     QUANTIFIER_ORDER = {"some": 0, "trace to some": 1, "trace": 2}        
