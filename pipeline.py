@@ -3,7 +3,7 @@
 # and returns a formatted Envision-style log description.
 # This is the ONLY file that touches the Claude API.
 # All classification is done by Python before the API call is made.
-
+from whisper import transcribe
 from parser import parse_transcript
 from classification_engine import get_consistency_density, parse_blow_counts
 import json
@@ -155,3 +155,20 @@ def combination(transcript: str, blow_counts: list, pen_depths: list) -> dict:
         "n_value_log": blow_count_data["n_value_log"],
         "flags": soil_data["flags"]  # pass through any extraction flags to UI
     }
+
+
+
+def run_from_voice(audio_file_path: str, blow_counts: list, pen_depths: list) -> dict:
+    """
+    Full pipeline starting from an audio file.
+    
+    1. Transcribe audio file using Whisper
+    2. Pass transcript to combination()
+    3. Return formatted description
+    
+    Input:  audio file path + blow counts + pen depths
+    Output: same dict as combination()
+    """
+    transcript = transcribe(audio_file_path)
+    print(f"Transcript: {transcript}")  # helpful for debugging during field testing
+    return combination(transcript, blow_counts, pen_depths)
