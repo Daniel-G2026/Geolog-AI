@@ -1,143 +1,284 @@
 # parser.py
-# Parses voice transcript into structured soil log entry
+# Parses a raw voice transcript string into a structured JSON object
+# ready to be sent to the Claude API via pipeline.py.
 # Scope: Soil only. Rock core parsing to be added later.
-import re
 
+import re
 from classification_engine import COHESIVE_TERMS, COHESIONLESS_TERMS
 
-ALL_SOIL_TERMS = sorted(COHESIVE_TERMS + COHESIONLESS_TERMS, key= len, reverse= True)
+
+# ─────────────────────────────────────────────
+# SOIL TERM LOOKUP LIST
+# Imported from classification_engine and combined into one sorted list.
+# Sorted longest-first so more specific terms are always matched before
+# shorter substrings they contain (e.g. "sandy silt" before "silt").
+# ─────────────────────────────────────────────
+
+ALL_SOIL_TERMS = sorted(COHESIVE_TERMS + COHESIONLESS_TERMS, key=len, reverse=True)
+
+
+# ─────────────────────────────────────────────
+# KNOWN VALUE LISTS
+# All ordered longest-first to prevent partial substring matches.
+# e.g. "dark brown" must come before "brown" or "dark brown" would
+# match as just "brown".
+# ─────────────────────────────────────────────
 
 KNOWN_COLORS = ["dark brown", "reddish brown", "brown", "grey", "black"]
+
 KNOWN_MOISTURE = ["very moist to wet", "moist to wet", "very moist", "moist", "dry", "wet"]
-KNOWN_INCLUSIONS = ["rock fragments", {"organic inclusions":["rootlets","organics","organic"]},"oxidation"]
+
+# Inclusions list is mixed — plain strings for simple terms,
+# dict for organic inclusions which has multiple synonyms that all
+# map to the same standard output term "organic inclusions"
+KNOWN_INCLUSIONS = [
+    "rock fragments",
+    {"organic inclusions": ["rootlets", "organics", "organic"]},
+    "oxidation"
+]
+
+# Quantifiers ordered longest-first — "trace to some" before "trace" and "some"
 KNOWN_QUANTIFIERS = ["trace to some", "some", "trace"]
-PAIRS = []
+
+# Precompute all valid quantifier + soil word pairs at module load time
+# so extract_components doesn't rebuild this list on every call
 secondary_soils = ["clay", "sand", "gravel", "silt"]
+PAIRS = []
 for quantifier in KNOWN_QUANTIFIERS:
     for soil in secondary_soils:
         PAIRS.append(f"{quantifier} {soil}")
 
-def substring_check(terms, transcript):
+
+# ─────────────────────────────────────────────
+# UTILITY FUNCTIONS
+# ─────────────────────────────────────────────
+
+def substring_check(terms: list, transcript: str) -> list:
+    """
+    Loops through a list of terms and returns all that appear in the transcript.
+    
+    Includes a collision guard: if a shorter term is already a substring of
+    something already matched, it won't be added again.
+    
+    Example: if "sandy silt" already matched, "silt" won't also be added
+    because "silt" is contained within "sandy silt".
+    """
     matches = []
-    for match in terms:
-        if match in transcript:
-            if not any(match in already_matched for already_matched in matches):
-                matches.append(match)
-    return matches    
+    for term in terms:
+        if term in transcript:
+            # Only add if this term isn't already part of a longer match
+            if not any(term in already_matched for already_matched in matches):
+                matches.append(term)
+    return matches
 
-def is_relevant(transcript: str) -> bool:
-    if any( term in transcript.lower() for term in ALL_SOIL_TERMS):
-        return True
-    else:
-        return False
-
-def extract_soil_name(transcript: str, components: list):
-    transcript_lower = transcript.lower()
-    matched_soil = []
-
-    cleaned = transcript_lower
-
-    for component in components:
-        cleaned = cleaned.replace(component, "")
-
-    matched_soil = substring_check(ALL_SOIL_TERMS,cleaned)
-
-    pattern = r"\btill\b"
-    for i,soil in enumerate(matched_soil):
-        if re.search(pattern,transcript_lower):
-            matched_soil[i] = f"{soil} till"
-    
-            
-    if len(matched_soil) == 0:
-        return(None,"No soil type recognized - manual input required")
-    elif len(matched_soil) == 1:
-        return(matched_soil[0], None)
-    else:
-        return (matched_soil, "Multiple soil tupes detected -Manual review required")
-    
-def extract_color(transcript: str):
-    transcript_lower = transcript.lower()
-    matched_colour = []
-    matched_colour = substring_check(KNOWN_COLORS, transcript_lower)
-    
-    if len(matched_colour) == 0:
-        return (None,"Colour not recognized - manual input required")
-    elif len(matched_colour) == 1:
-        return (matched_colour[0], None)
-    else:
-        return (matched_colour,"Multiple colours detected - Mnual review required")
-
-def extract_moisture(transcript: str):
-    transcript_lower = transcript.lower()
-    matched_moisture = []
-    
-    matched_moisture = substring_check(KNOWN_MOISTURE,transcript_lower)
-    if len(matched_moisture) == 0:
-        return (None,"Moisture not found - manual input required")
-    elif len(matched_moisture) == 1:
-        return (matched_moisture[0], None)
-    else:
-        return (matched_moisture,"Multiple moistures detected - Manual review required")
-    
-
-def extract_components(transcript: str):
-    transcript_lower = transcript.lower()
-    components = []
-    
-    components = substring_check(PAIRS,transcript_lower)
-            
-    return (components, None) if components else ([], None)
 
 def filter_components(components: list, soil_name: str) -> list:
-    # Get individual words from the soil name
-    soil_name_words = soil_name.lower().split()
+    """
+    Prevents secondary components from containing soil words that are
+    already part of the primary soil name.
     
+    Example: if primary soil is "silty clay", then "trace to some clay"
+    should not appear as a component because "clay" is already in the name.
+    
+    Logic: gets the last word of each component (the soil word),
+    checks if it appears in the primary soil name. If it does, filter it out.
+    """
+    soil_name_words = soil_name.lower().split()
     filtered = []
+
     for component in components:
-        # Get the soil word from the component (last word)
+        # Last word in component string is always the soil word
         # e.g. "trace sand" → "sand", "trace to some clay" → "clay"
         component_soil_word = component.split()[-1]
-        
-        # Only keep component if its soil word isn't already in the primary soil name
+
         if component_soil_word not in soil_name_words:
             filtered.append(component)
-    
+
     return filtered
 
 
+# ─────────────────────────────────────────────
+# EXTRACTION FUNCTIONS
+# Each returns a tuple: (value, flag_message)
+# flag_message is None when extraction succeeded,
+# or a string when manual review is needed.
+# ─────────────────────────────────────────────
+
+def is_relevant(transcript: str) -> bool:
+    """
+    First gate in the pipeline. Returns True only if the transcript
+    contains at least one recognized soil term.
+    Returns False for completely unrelated speech — no point parsing further.
+    """
+    return any(term in transcript.lower() for term in ALL_SOIL_TERMS)
+
+
+def extract_soil_name(transcript: str, components: list):
+    """
+    Finds the primary soil name in the transcript.
+    
+    Receives the already-extracted components list so it can strip them
+    from the transcript before searching — this prevents component soil words
+    (e.g. "trace sand") from being mistaken for the primary soil name.
+    
+    Uses regex word boundary check to detect "till" and appends it
+    to the soil name if present.
+    
+    Returns:
+    - (string, None)       → single match, clean
+    - (list, flag_message) → multiple matches, triggers split_layer = True
+    - (None, flag_message) → no match found
+    """
+    transcript_lower = transcript.lower()
+
+    # Strip component terms from transcript before searching for soil name
+    # so secondary soil words don't get mistaken for the primary soil
+    cleaned = transcript_lower
+    for component in components:
+        cleaned = cleaned.replace(component, "")
+
+    matched_soil = substring_check(ALL_SOIL_TERMS, cleaned)
+
+    # Append "till" to any matched soil name if "till" appears in the transcript
+    # Uses word boundary regex to avoid matching "untill" or "distilled" etc.
+    till_pattern = r"\btill\b"
+    for i, soil in enumerate(matched_soil):
+        if re.search(till_pattern, transcript_lower):
+            matched_soil[i] = f"{soil} till"
+
+    if len(matched_soil) == 0:
+        return (None, "No soil type recognized - manual input required")
+    elif len(matched_soil) == 1:
+        return (matched_soil[0], None)
+    else:
+        # Multiple soils detected — flag for manual review
+        # pipeline.py will set split_layer = True and Claude handles formatting
+        return (matched_soil, "Multiple soil types detected - manual review required")
+
+
+def extract_color(transcript: str):
+    """
+    Scans for color terms using substring_check with KNOWN_COLORS.
+    Returns single color string or flags multiple colors for manual review.
+    """
+    transcript_lower = transcript.lower()
+    matched_colour = substring_check(KNOWN_COLORS, transcript_lower)
+
+    if len(matched_colour) == 0:
+        return (None, "Colour not recognized - manual input required")
+    elif len(matched_colour) == 1:
+        return (matched_colour[0], None)
+    else:
+        return (matched_colour, "Multiple colours detected - manual review required")
+
+
+def extract_moisture(transcript: str):
+    """
+    Scans for moisture terms using substring_check with KNOWN_MOISTURE.
+    
+    Missing moisture is flagged but does NOT block the pipeline —
+    description is still generated and flag is passed to UI for tech to see.
+    """
+    transcript_lower = transcript.lower()
+    matched_moisture = substring_check(KNOWN_MOISTURE, transcript_lower)
+
+    if len(matched_moisture) == 0:
+        return (None, "Moisture not found - manual input required")
+    elif len(matched_moisture) == 1:
+        return (matched_moisture[0], None)
+    else:
+        return (matched_moisture, "Multiple moistures detected - manual review required")
+
+
+def extract_components(transcript: str):
+    """
+    Finds all secondary soil components by scanning for PAIRS
+    (quantifier + soil word combinations precomputed at module load).
+    
+    Returns a list — multiple components are valid and expected.
+    Empty list with no flag is also valid (not every sample has components).
+    """
+    transcript_lower = transcript.lower()
+    components = substring_check(PAIRS, transcript_lower)
+    return (components, None) if components else ([], None)
+
+
 def extract_inclusions(transcript: str):
+    """
+    Handles two types of inclusions:
+    - Plain strings: matched directly (rock fragments, oxidation)
+    - Dict entry: organic inclusions has synonyms (rootlets, organics, organic)
+      that all map to the standard term "organic inclusions".
+      Once one synonym matches, stops checking the rest (break).
+    """
     transcript_lower = transcript.lower()
     inclusions = []
 
     for item in KNOWN_INCLUSIONS:
         if isinstance(item, dict):
+            # Dict entry — check all synonyms, map to standard term
             for standard_term, synonyms in item.items():
                 for synonym in synonyms:
                     if synonym in transcript_lower:
                         if standard_term not in inclusions:
                             inclusions.append(standard_term)
-                        break  # stop checking synonyms once one matches
+                        break  # one synonym match is enough — stop checking rest
         else:
+            # Plain string — direct match
             if item in transcript_lower:
                 if item not in inclusions:
                     inclusions.append(item)
-    
+
     return (inclusions, None) if inclusions else ([], None)
-    
+
 
 def extract_fill(transcript: str):
+    """
+    Detects FILL material using regex word boundary check.
+    Word boundary \\b prevents false matches from words like
+    "backfill" or "fulfilled" which contain "fill" as a substring.
+    """
     transcript_lower = transcript.lower()
-    
     pattern = r"\bfill\b"
-    if re.search(pattern,transcript_lower):
+
+    if re.search(pattern, transcript_lower):
         return (True, None)
     else:
         return (False, None)
-    
 
 
-def parse_transcript(transcript:str) -> dict:
+# ─────────────────────────────────────────────
+# MAIN PARSE FUNCTION
+# ─────────────────────────────────────────────
+
+def parse_transcript(transcript: str) -> dict:
+    """
+    Main function. Calls all extraction functions in the correct order
+    and assembles the structured JSON object for the pipeline.
     
+    ORDER MATTERS:
+    extract_components must run BEFORE extract_soil_name so that component
+    terms can be stripped from the transcript before soil name matching.
+    This prevents secondary soil words (e.g. "trace sand") from being
+    mistaken for the primary soil name.
+    
+    Early exit: if soil_name is None (irrelevant transcript), returns
+    immediately without proceeding to the API call.
+    
+    Returns dict:
+    {
+        "soil_name":   string or list — list triggers split_layer = True,
+        "components":  list of strings,
+        "inclusions":  list of strings,
+        "color":       string or None,
+        "moisture":    string or None,
+        "fill":        bool,
+        "split_layer": bool — True when multiple soils detected,
+        "flags":       list — empty = clean, populated = needs manual review
+    }
+    """
+
+    # Gate 1 — check if transcript is relevant at all before doing any work
     if not is_relevant(transcript):
         return {
             "soil_name": None,
@@ -148,33 +289,34 @@ def parse_transcript(transcript:str) -> dict:
             "fill": False,
             "split_layer": False,
             "flags": ["Transcript not recognized as a soil description — manual input required"]
-
-
         }
-    else:
-        
-        components, component_flag = extract_components(transcript)
-        soil_name, soil_flag = extract_soil_name(transcript,components)
 
-        if isinstance(soil_name, str):
-            components = filter_components(components,soil_name)
-            
-        inclusion, inclusion_flag = extract_inclusions(transcript)
-        colour, colour_flag = extract_color(transcript)
-        moisture, moisture_flag = extract_moisture(transcript)
-        fill, fill_flag = extract_fill(transcript)
+    # ── Extract all fields ──
+    # Components first — needed to clean transcript before soil name extraction
+    components, component_flag = extract_components(transcript)
+    soil_name, soil_flag = extract_soil_name(transcript, components)
 
+    # Filter out components whose soil word is already in the primary soil name
+    # e.g. if soil is "silty clay", remove "trace to some clay" from components
+    if isinstance(soil_name, str):
+        components = filter_components(components, soil_name)
 
-        flags = [f for f in [soil_flag, component_flag, inclusion_flag,
-                              colour_flag, moisture_flag, fill_flag] if f is not None]
+    inclusion, inclusion_flag = extract_inclusions(transcript)
+    colour, colour_flag = extract_color(transcript)
+    moisture, moisture_flag = extract_moisture(transcript)
+    fill, fill_flag = extract_fill(transcript)
 
-        return {
-            "soil_name": soil_name,
-            "components": components,
-            "inclusions": inclusion,
-            "color": colour,
-            "moisture": moisture,
-            "fill": fill,
-            "split_layer": isinstance(soil_name,list),
-            "flags": flags
-        }
+    # Collect all non-None flags into a single list for the UI
+    flags = [f for f in [soil_flag, component_flag, inclusion_flag,
+                          colour_flag, moisture_flag, fill_flag] if f is not None]
+
+    return {
+        "soil_name": soil_name,
+        "components": components,
+        "inclusions": inclusion,
+        "color": colour,
+        "moisture": moisture,
+        "fill": fill,
+        "split_layer": isinstance(soil_name, list),  # True only when multiple soils detected
+        "flags": flags
+    }

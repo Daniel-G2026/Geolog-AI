@@ -1,9 +1,32 @@
+# pipeline.py
+# The coordinator — takes transcript + blow counts, runs the full pipeline,
+# and returns a formatted Envision-style log description.
+# This is the ONLY file that touches the Claude API.
+# All classification is done by Python before the API call is made.
+
 from parser import parse_transcript
 from classification_engine import get_consistency_density, parse_blow_counts
 import json
 import anthropic
 import os
 from dotenv import load_dotenv
+from pathlib import Path
+
+# Load .env file from the same directory as this script
+# override=True ensures .env always takes precedence over any cached shell variables
+load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
+
+client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+
+# ─────────────────────────────────────────────
+# ENVISION SYSTEM PROMPT
+# Tells Claude its role is FORMATTING ONLY.
+# All classification (consistency/density terms) has already been
+# calculated by Python before this prompt is sent.
+# Claude must use the provided values exactly as given.
+# ─────────────────────────────────────────────
+
 SYSTEM_PROMPT = """You are a geotechnical logger for Envision Consultants Ltd.
 Your job is to format the provided structured soil data into a report-ready description 
 that exactly matches Envision's logging style.
@@ -22,34 +45,98 @@ RULES:
    as a separate capitalized header. Do NOT add a colon after the soil type.
 8. Transitional soils: use TO between names
 9. End every description with a period
-10. 10. If split_layer is true: return exactly "MANUAL REVIEW REQUIRED" on the 
+10. If split_layer is true: return exactly "MANUAL REVIEW REQUIRED" on the 
     first line, then list each soil name from soil_name array as a separate 
     entry with its shared properties. Format: "- [SOIL NAME]: color, moisture, consistency."
 
 Return only the formatted description string. No explanation, no extra text."""
-load_dotenv()
-
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 
+# ─────────────────────────────────────────────
+# COMPONENT SORTER
+# Ensures components are always ordered most → least significant
+# before being sent to Claude.
+# Order: some (0) → trace to some (1) → trace (2)
+# Unknown quantifiers sort last (99) — defensive fallback.
+# ─────────────────────────────────────────────
 
-def combination(transcript, blow_counts: list, pen_depths: list):
+def sort_components(components: list) -> list:
+    """
+    Sorts component list by quantifier significance order:
+    some → trace to some → trace
+    
+    This ensures the formatted description always lists
+    dominant components before minor ones, matching Envision's style.
+    """
+    QUANTIFIER_ORDER = {"some": 0, "trace to some": 1, "trace": 2}
+
+    def sort_key(component):
+        for quantifier, order in QUANTIFIER_ORDER.items():
+            if component.startswith(quantifier):
+                return order
+        return 99  # unknown quantifier — sort to end
+
+    return sorted(components, key=sort_key)
+
+
+# ─────────────────────────────────────────────
+# MAIN PIPELINE FUNCTION
+# ─────────────────────────────────────────────
+
+def combination(transcript: str, blow_counts: list, pen_depths: list) -> dict:
+    """
+    Main pipeline function. Full flow:
+    
+    1. parse_transcript(transcript) → structured JSON with all soil fields
+    2. Early exit if soil_name is None (irrelevant/unrecognized transcript)
+    3. sort_components() — order components most to least significant
+    4. parse_blow_counts(blow_counts, pen_depths) → n_value + n_value_log
+    5. get_consistency_density(soil_name, n_value) → consistency/density term
+    6. Add consistency and n_value_log to soil_data dict
+    7. Send complete soil_data JSON to Claude API with SYSTEM_PROMPT
+    8. Return {description, n_value_log, flags}
+    
+    Inputs:
+    - transcript:   raw voice transcript string from Whisper (or typed text for now)
+    - blow_counts:  list of 1–4 SPT blow count integers
+    - pen_depths:   list of corresponding penetration depths in inches
+    
+    Returns dict:
+    {
+        "description": formatted Envision log string (or None if irrelevant),
+        "n_value_log": string for the log e.g. "18" or "62/254mm",
+        "flags":       list of any manual review messages for the UI
+    }
+    """
+
+    # Step 1 — parse the transcript into structured fields
     soil_data = parse_transcript(transcript)
+
+    # Step 2 — early exit if transcript was irrelevant or soil unrecognized
+    # No point calling the API if we have nothing to format
     if soil_data["soil_name"] is None:
         return {
-        "description": None,
-        "n_value_log": None,
-        "flags": soil_data["flags"]
-    }
+            "description": None,
+            "n_value_log": None,
+            "flags": soil_data["flags"]
+        }
+
+    # Step 3 — sort components most to least before sending to Claude
     soil_data["components"] = sort_components(soil_data["components"])
 
-    blow_count_data = parse_blow_counts(blow_counts,pen_depths)
+    # Step 4 — process blow counts into N-value and log notation
+    blow_count_data = parse_blow_counts(blow_counts, pen_depths)
 
-    consistency = get_consistency_density(soil_data["soil_name"],blow_count_data["n_value"])
-    soil_data["consistency"] = consistency
+    # Step 5 — classify consistency/density from soil name + N-value
+    # Python does this — Claude never determines this term
+    consistency = get_consistency_density(soil_data["soil_name"], blow_count_data["n_value"])
+    soil_data["consistency"] = consistency     
 
+    # Step 6 — add log notation to the data dict so Claude can include it if needed
     soil_data["n_value_log"] = blow_count_data["n_value_log"]
 
+    # Step 7 — send fully assembled JSON to Claude API
+    # Claude's only job here is formatting — all values are already determined
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
@@ -57,21 +144,14 @@ def combination(transcript, blow_counts: list, pen_depths: list):
         messages=[
             {
                 "role": "user",
-                "content": json.dumps(soil_data)
+                "content": json.dumps(soil_data, indent=2)  # indent=2 for readable input
             }
         ]
     )
+
+    # Step 8 — return the formatted description + any flags for the UI
     return {
         "description": message.content[0].text,
         "n_value_log": blow_count_data["n_value_log"],
-        "flags": soil_data["flags"]
+        "flags": soil_data["flags"]  # pass through any extraction flags to UI
     }
-def sort_components(components: list) -> list:
-    QUANTIFIER_ORDER = {"some": 0, "trace to some": 1, "trace": 2}        
-    def sort_key(component):
-        for quantifier, order in QUANTIFIER_ORDER.items():
-            if component.startswith(quantifier):
-                return order
-        return 99
-    return sorted(components, key=sort_key)
-
