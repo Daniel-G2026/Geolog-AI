@@ -48,11 +48,71 @@ for quantifier in KNOWN_QUANTIFIERS:
     for soil in secondary_soils:
         PAIRS.append(f"{quantifier} {soil}")
 
+# Maps all accepted synonyms to their standard keyword
+KEYWORD_SYNONYMS = [
+    {"description": "description",
+    "soil description": "description",
+    "soil": "description",
+    "desc": "description"},
+    
+   
+    {"blows":"blows",
+     "blow counts": "blows",
+    "blowcounts": "blows",
+    "blow count": "blows",
+    "counts": "blows"},
+    
+    {"recovery": "recovery",
+    "rec": "recovery"},
+    
+    {"comments": "comments",
+    "comment": "comments",
+    "remarks": "comments",
+    "remark": "comments",
+    "notes": "comments",
+    "note": "comments"},
+    
+    {"cgd": "cgd"},
+    {"pid": "pid"},
+    {"cone": "cone"}
+]
 
 # ─────────────────────────────────────────────
 # UTILITY FUNCTIONS
 # ─────────────────────────────────────────────
+def segment_transcript(transcript: str):
 
+    standard_keywords = []
+    text = transcript.lower().strip()
+    for synonym_group in KEYWORD_SYNONYMS:
+        for synonym in sorted(synonym_group.keys(),key=len,reverse=True):
+            standard = synonym_group[synonym]
+            if synonym in text:
+                text = text.replace(synonym,standard)
+                standard_keywords.append(standard)
+                break
+
+    keyword_found = []
+    for keyword in standard_keywords:
+        if keyword in text:
+            index = text.find(keyword)
+            keyword_found.append((index,keyword))
+    keyword_found = sorted(keyword_found,key=lambda x:x[0])
+
+    segment_dict = {}
+    for i, (index,keyword) in enumerate(keyword_found):
+        #start of content right after the keyword itself
+        start = index +len(keyword)
+        # end of content is the start of 
+        if i+1 < len(keyword_found):
+            end = keyword_found[i+1][0]
+        else:
+            end = len(text)
+        segment_dict[keyword] = text[start:end].strip()
+
+    return    segment_dict
+
+dict = segment_transcript('soil description silty clay till trace sand dark brown moist blows 12 17 19 23 recovery 280 comments wet spoon')
 def substring_check(terms: list, transcript: str) -> list:
     """
     Loops through a list of terms and returns all that appear in the transcript.
@@ -74,12 +134,6 @@ def substring_check(terms: list, transcript: str) -> list:
 
 def filter_components(components: list, soil_name: str) -> list:
     """
-    Prevents secondary components from containing soil words that are
-    already part of the primary soil name.
-    
-    Example: if primary soil is "silty clay", then "trace to some clay"
-    should not appear as a component because "clay" is already in the name.
-    
     Logic: gets the last word of each component (the soil word),
     checks if it appears in the primary soil name. If it does, filter it out.
     """
@@ -115,15 +169,6 @@ def is_relevant(transcript: str) -> bool:
 
 def extract_soil_name(transcript: str, components: list):
     """
-    Finds the primary soil name in the transcript.
-    
-    Receives the already-extracted components list so it can strip them
-    from the transcript before searching — this prevents component soil words
-    (e.g. "trace sand") from being mistaken for the primary soil name.
-    
-    Uses regex word boundary check to detect "till" and appends it
-    to the soil name if present.
-    
     Returns:
     - (string, None)       → single match, clean
     - (list, flag_message) → multiple matches, triggers split_layer = True
@@ -252,31 +297,7 @@ def extract_fill(transcript: str):
 # ─────────────────────────────────────────────
 
 def parse_transcript(transcript: str) -> dict:
-    """
-    Main function. Calls all extraction functions in the correct order
-    and assembles the structured JSON object for the pipeline.
-    
-    ORDER MATTERS:
-    extract_components must run BEFORE extract_soil_name so that component
-    terms can be stripped from the transcript before soil name matching.
-    This prevents secondary soil words (e.g. "trace sand") from being
-    mistaken for the primary soil name.
-    
-    Early exit: if soil_name is None (irrelevant transcript), returns
-    immediately without proceeding to the API call.
-    
-    Returns dict:
-    {
-        "soil_name":   string or list — list triggers split_layer = True,
-        "components":  list of strings,
-        "inclusions":  list of strings,
-        "color":       string or None,
-        "moisture":    string or None,
-        "fill":        bool,
-        "split_layer": bool — True when multiple soils detected,
-        "flags":       list — empty = clean, populated = needs manual review
-    }
-    """
+
 
     # Gate 1 — check if transcript is relevant at all before doing any work
     if not is_relevant(transcript):
