@@ -1,34 +1,35 @@
 # pipeline.py
 # The coordinator — takes transcript + blow counts, runs the full pipeline,
-# and returns a formatted Envision-style log description.
+# and returns a complete SampleEntry object.
 # This is the ONLY file that touches the Claude API.
-# All classification is done by Python before the API call is made.
-from whisper import transcribe
-from parser import parse_transcript
-from classification_engine import get_consistency_density, parse_blow_counts
+# All geotechnical math is done by Python before any API call is made.
+
 import json
-import anthropic
 import os
+import anthropic
 from dotenv import load_dotenv
 from pathlib import Path
+from whisper import transcribe
+from classification_engine import get_consistency_density, parse_blow_counts
+from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery
+from models import SampleEntry
 
-# Load .env file from the same directory as this script
-# override=True ensures .env always takes precedence over any cached shell variables
+# Load .env file from the same directory as this script.
+# override=True ensures .env always takes precedence over cached shell variables.
 load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 
 # ─────────────────────────────────────────────
-# ENVISION SYSTEM PROMPT
-# Tells Claude its role is FORMATTING ONLY.
-# All classification (consistency/density terms) has already been
-# calculated by Python before this prompt is sent.
-# Claude must use the provided values exactly as given.
+# ENVISION FORMATTING PROMPT
+# Claude's role is FORMATTING ONLY.
+# All classification has already been done by Python.
+# Claude must use every provided value exactly as given.
 # ─────────────────────────────────────────────
 
 SYSTEM_PROMPT = """You are a geotechnical logger for Envision Consultants Ltd.
-Your job is to format the provided structured soil data into a report-ready description 
+Your job is to format the provided structured soil data into a report-ready description
 that exactly matches Envision's logging style.
 Do NOT determine or infer consistency or density — it is already provided to you.
 Use it exactly as given.
@@ -40,18 +41,25 @@ RULES:
 4. Color: use exactly as provided
 5. Moisture: use exactly as provided
 6. Consistency/density: use exactly as provided — do not change it
-7. FILL prefix when fill is true: start with "FILL:" then list components, 
-   inclusions, color, moisture, consistency. Do NOT include the soil_name 
+7. FILL prefix when fill is true: start with "FILL:" then list components,
+   inclusions, color, moisture, consistency. Do NOT include the soil_name
    as a separate capitalized header. Do NOT add a colon after the soil type.
 8. Transitional soils: use TO between names
 9. End every description with a period
-10. If split_layer is true: return exactly "MANUAL REVIEW REQUIRED" on the 
-    first line, then list each soil name from soil_name array as a separate 
+10. If split_layer is true: return exactly "MANUAL REVIEW REQUIRED" on the
+    first line, then list each soil name from soil_name array as a separate
     entry with its shared properties. Format: "- [SOIL NAME]: color, moisture, consistency."
 
 Return only the formatted description string. No explanation, no extra text."""
 
 
+# ─────────────────────────────────────────────
+# CLAUDE EXTRACTION PROMPT
+# Replaces the old substring parser for soil description fields.
+# Claude extracts structured fields from natural speech.
+# Handles messy phrasing, unusual inclusions, and speech variation
+# that rigid substring matching cannot handle.
+# ─────────────────────────────────────────────
 
 EXTRACTION_PROMPT = """You are a geotechnical data extraction assistant.
 Extract structured fields from a field technician's soil description.
@@ -62,27 +70,31 @@ Fields to extract:
 - components: list of secondary soils with quantifiers (e.g. ["trace gravel", "some sand", "trace to some clay"])
 - color: soil color (e.g. "brown", "dark brown", "reddish brown", "grey")
 - moisture: moisture condition (e.g. "moist", "wet", "very moist to wet", "dry")
-- inclusions: list of ALL inclusions or foreign objects found (e.g. ["rock fragments", "organic inclusions", "coin", "brick fragment"])
+- inclusions: list of ALL inclusions or foreign objects found in the sample
 - fill: true if "fill" appears as a soil type descriptor, false otherwise
 
 Rules:
 - soil_name must NOT include trace/some quantifiers
 - components are secondary soils preceded by trace/some/trace to some
-- inclusions: list ALL inclusions and foreign objects found in the sample.
-  Standard geological terms (rock fragments, oxidation) go in as-is.
+- inclusions: standard geological terms (rock fragments, oxidation) go in as-is.
   Organic matter of any kind (roots, branches, organics, rootlets) → "organic inclusions"
-  Unusual foreign objects (coin, brick fragment, glass, metal debris) → include exactly as found  
+  Unusual foreign objects (coin, brick fragment, glass, metal debris) → include exactly as found
 - Use null for missing strings
 - Use empty list [] for missing lists
 - fill is always true or false, never null
 - Return raw lowercase values only"""
 
+
+# ─────────────────────────────────────────────
+# DESCRIPTION FIELD EXTRACTOR
+# ─────────────────────────────────────────────
+
 def extract_description_fields(description_segment: str) -> dict:
     """
     Sends the description segment to Claude and extracts structured soil fields.
-    Replaces the old substring-based parser for soil name, color, moisture,
-    components, inclusions and fill.
-    
+    Replaces the old substring-based parser — handles messy natural speech,
+    unusual inclusions, and any variation in how the tech describes the soil.
+
     Input:  "silty clay till trace sand dark brown moist"
     Output: {
         "soil_name": "silty clay till",
@@ -92,7 +104,7 @@ def extract_description_fields(description_segment: str) -> dict:
         "inclusions": [],
         "fill": false
     }
-    
+
     Returns dict with null values for missing fields — never crashes.
     """
     if not description_segment:
@@ -104,29 +116,20 @@ def extract_description_fields(description_segment: str) -> dict:
             "inclusions": [],
             "fill": False
         }
-    
+
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=500,
         system=EXTRACTION_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": description_segment
-            }
-        ]
+        messages=[{"role": "user", "content": description_segment}]
     )
-    
-    # Parse the JSON response
-    import json
+
     try:
         raw = message.content[0].text.strip()
         # Strip markdown code fences if Claude adds them
         raw = raw.replace("```json", "").replace("```", "").strip()
-        fields = json.loads(raw)
-        return fields
+        return json.loads(raw)
     except json.JSONDecodeError:
-        # If parsing fails return empty fields with a flag
         return {
             "soil_name": None,
             "components": [],
@@ -136,21 +139,19 @@ def extract_description_fields(description_segment: str) -> dict:
             "fill": False,
             "parse_error": "Claude extraction failed — manual input required"
         }
+
+
 # ─────────────────────────────────────────────
 # COMPONENT SORTER
-# Ensures components are always ordered most → least significant
-# before being sent to Claude.
-# Order: some (0) → trace to some (1) → trace (2)
+# Orders components most → least significant before sending to Claude.
+# Envision style: some → trace to some → trace
 # Unknown quantifiers sort last (99) — defensive fallback.
 # ─────────────────────────────────────────────
 
 def sort_components(components: list) -> list:
     """
-    Sorts component list by quantifier significance order:
-    some → trace to some → trace
-    
-    This ensures the formatted description always lists
-    dominant components before minor ones, matching Envision's style.
+    Sorts component list by quantifier significance:
+    some (0) → trace to some (1) → trace (2)
     """
     QUANTIFIER_ORDER = {"some": 0, "trace to some": 1, "trace": 2}
 
@@ -168,26 +169,32 @@ def sort_components(components: list) -> list:
 # ─────────────────────────────────────────────
 
 def combination(transcript: str, blow_counts: list, pen_depths: list,
-                sample_no: int, depth_ft: float, sample_type: str = "SS"):
+                sample_no: int, depth_ft: float, sample_type: str = "SS") -> SampleEntry:
     """
-    Refactored main pipeline function.
-    Now returns a complete SampleEntry object instead of a plain dict.
-    
+    Main pipeline function. Returns a complete SampleEntry object.
+
     Flow:
-    1. segment_transcript() — split raw transcript by keywords
-    2. extract_description_fields() — Claude extracts soil fields from description segment
-    3. Early exit if no soil name found
-    4. parse_blow_counts_from_string() — convert blows string to list (if not provided)
-    5. parse_blow_counts() — calculate N-value and log notation
-    6. get_consistency_density() — classify consistency/density term
-    7. parse_recovery() — extract recovery in inches, convert to mm
-    8. sort_components() — order components most to least
-    9. Assemble soil_data dict for formatting
-    10. Claude formatting prompt — produce Envision description
-    11. Return complete SampleEntry object
+    1.  segment_transcript()           — split transcript by keywords
+    2.  extract_description_fields()   — Claude extracts soil fields from description segment
+    3.  Early exit if no soil name found
+    4.  parse_blow_counts_from_string() — parse blows string if blow_counts not provided
+    5.  parse_blow_counts()            — calculate N-value and log notation
+    6.  get_consistency_density()      — classify consistency/density from N-value
+    7.  parse_recovery()               — extract recovery in inches, convert to mm
+    8.  sort_components()              — order components most to least
+    9.  Assemble soil_data dict        — all fields ready for Claude formatting
+    10. Claude formatting prompt       — produce Envision description string
+    11. Recovery validation            — flag partial recovery in comments
+    12. Return complete SampleEntry
+
+    Inputs:
+    - transcript:   raw voice transcript string from Whisper
+    - blow_counts:  list of 1-4 ints from tap UI, or [] to parse from transcript
+    - pen_depths:   list of penetration depths in inches from tap UI
+    - sample_no:    sample number for this entry
+    - depth_ft:     depth in feet as logged on site
+    - sample_type:  "SS" = spoon sample (default), "RC" = rock core (future)
     """
-    from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery
-    from models import SampleEntry
 
     # Step 1 — segment the transcript by keywords
     segments = segment_transcript(transcript)
@@ -197,10 +204,11 @@ def combination(transcript: str, blow_counts: list, pen_depths: list,
     fields = extract_description_fields(description_segment)
 
     # Step 3 — early exit if no soil name found
+    depth_m = round(depth_ft * 0.3048, 2)
     if not fields.get("soil_name"):
         return SampleEntry(
             depth_ft=depth_ft,
-            depth_m=round(depth_ft * 0.3048, 2),
+            depth_m=depth_m,
             sample_type=sample_type,
             sample_no=sample_no,
             blow_counts=blow_counts,
@@ -212,20 +220,18 @@ def combination(transcript: str, blow_counts: list, pen_depths: list,
             flags=["No soil type recognized — manual input required"]
         )
 
-    # Step 4 — parse blow counts
-    # If blow_counts not provided as a list, parse from transcript segment
+    # Step 4 — parse blow counts from transcript if not provided via tap UI
     if not blow_counts:
         blow_counts = parse_blow_counts_from_string(segments.get("blows", ""))
 
     # Step 5 — calculate N-value and log notation
     blow_count_data = parse_blow_counts(blow_counts, pen_depths)
 
-    # Step 6 — classify consistency/density
-    consistency = get_consistency_density(
-        fields["soil_name"], blow_count_data["n_value"]
-    )
+    # Step 6 — classify consistency/density from N-value
+    # Python does this — Claude never determines this term
+    consistency = get_consistency_density(fields["soil_name"], blow_count_data["n_value"])
 
-    # Step 7 — parse recovery (in inches) and convert to mm
+    # Step 7 — parse recovery in inches and convert to mm
     recovery_inches, recovery_flag = parse_recovery(segments.get("recovery", ""))
     recovery_mm = round(recovery_inches * 25.4) if recovery_inches else None
 
@@ -244,43 +250,33 @@ def combination(transcript: str, blow_counts: list, pen_depths: list,
         "consistency": consistency,
     }
 
-    # Step 10 — Claude formatting prompt — produces Envision description
+    # Step 10 — Claude formatting prompt produces the Envision description string
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
         system=SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": json.dumps(soil_data, indent=2)
-            }
-        ]
+        messages=[{"role": "user", "content": json.dumps(soil_data, indent=2)}]
     )
-
     description = message.content[0].text
-    flags = []
+
+    # Step 11 — recovery validation and comments assembly
     comments = segments.get("comments")
-     # Recovery validation
     total_penetration = sum(pen_depths)
     if recovery_inches and recovery_inches < total_penetration:
         recovery_note = f"Partial recovery: {recovery_inches}\" of {total_penetration}\" penetrated"
-        if comments:
-            comments = f"{comments}. {recovery_note}"
-        else:
-            comments = recovery_note
+        comments = f"{comments}. {recovery_note}" if comments else recovery_note
     elif recovery_inches and recovery_inches > total_penetration:
+        # Will be added to flags below
+        pass
+
+    # Collect all flags
+    flags = []
+    if recovery_inches and recovery_inches > total_penetration:
         flags.append("Recovery exceeds penetration — verify")
-        # Collect all flags
-
-    
-
-    # Check for missing critical fields from extraction
     if not fields.get("color"):
         flags.append("Color not found — manual input required")
     if not fields.get("moisture"):
         flags.append("Moisture not found — manual input required")
-    if not fields.get("soil_name"):
-        flags.append("Soil name not recognized — manual input required")
     if consistency is None:
         flags.append("Soil type unrecognized — consistency requires manual input")
     if recovery_flag:
@@ -288,10 +284,10 @@ def combination(transcript: str, blow_counts: list, pen_depths: list,
     if fields.get("parse_error"):
         flags.append(fields["parse_error"])
 
-    # Step 11 — return complete SampleEntry object
+    # Step 12 — return complete SampleEntry object
     return SampleEntry(
         depth_ft=depth_ft,
-        depth_m=round(depth_ft * 0.3048, 2),
+        depth_m=depth_m,
         sample_type=sample_type,
         sample_no=sample_no,
         blow_counts=blow_counts,
@@ -308,12 +304,27 @@ def combination(transcript: str, blow_counts: list, pen_depths: list,
     )
 
 
-def run_from_voice(audio_file_path: str, blow_counts: list, pen_depths: list,
-                   sample_no: int, depth_ft: float, sample_type: str = "SS"):
+# ─────────────────────────────────────────────
+# VOICE ENTRY POINT
+# ─────────────────────────────────────────────
+
+def run_from_voice(audio_file_path: str, pen_depths: list,
+                   sample_no: int, depth_ft: float,
+                   sample_type: str = "SS") -> SampleEntry:
     """
     Full pipeline starting from an audio file.
+    Blow counts come from the transcript — no need to pass them separately.
+    Pen depths come from tap UI input and must be passed as a parameter.
+
     Returns a complete SampleEntry object.
     """
     transcript = transcribe(audio_file_path)
     print(f"Transcript: {transcript}")
-    return combination(transcript, blow_counts, pen_depths, sample_no, depth_ft, sample_type)
+    return combination(
+        transcript=transcript,
+        blow_counts=[],      # always empty — extracted from transcript
+        pen_depths=pen_depths,
+        sample_no=sample_no,
+        depth_ft=depth_ft,
+        sample_type=sample_type
+    )

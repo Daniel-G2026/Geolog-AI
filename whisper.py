@@ -32,6 +32,8 @@ WHISPER_PROMPT = (
     "compact, dense, very dense, loose, very loose, medium dense, "
     "till, fill, oxidation, rock fragments, organic inclusions, rootlets, "
     "silty clay till, sandy silt till, sand and silt till, silty sand till"
+    "blow counts, blows, recovery, description, comments, wet spoon"
+    "auger grinding"
 )
 
 
