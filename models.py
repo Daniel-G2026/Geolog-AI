@@ -22,6 +22,7 @@ class SampleEntry:
     n_value: int
     n_value_log: str
     refusal: bool
+    recovery_inches: Optional[float] = None
     recovery_mm: Optional[int] = None
     cone_blow_ft: Optional[str] = None
 

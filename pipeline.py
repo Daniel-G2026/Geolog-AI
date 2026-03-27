@@ -52,6 +52,90 @@ RULES:
 Return only the formatted description string. No explanation, no extra text."""
 
 
+
+EXTRACTION_PROMPT = """You are a geotechnical data extraction assistant.
+Extract structured fields from a field technician's soil description.
+Return ONLY a valid JSON object with these exact keys. No explanation, no markdown, no extra text.
+
+Fields to extract:
+- soil_name: primary soil classification (e.g. "silty clay till", "sandy silt")
+- components: list of secondary soils with quantifiers (e.g. ["trace gravel", "some sand", "trace to some clay"])
+- color: soil color (e.g. "brown", "dark brown", "reddish brown", "grey")
+- moisture: moisture condition (e.g. "moist", "wet", "very moist to wet", "dry")
+- inclusions: list of ALL inclusions or foreign objects found (e.g. ["rock fragments", "organic inclusions", "coin", "brick fragment"])
+- fill: true if "fill" appears as a soil type descriptor, false otherwise
+
+Rules:
+- soil_name must NOT include trace/some quantifiers
+- components are secondary soils preceded by trace/some/trace to some
+- inclusions: list ALL inclusions and foreign objects found in the sample.
+  Standard geological terms (rock fragments, oxidation) go in as-is.
+  Organic matter of any kind (roots, branches, organics, rootlets) → "organic inclusions"
+  Unusual foreign objects (coin, brick fragment, glass, metal debris) → include exactly as found  
+- Use null for missing strings
+- Use empty list [] for missing lists
+- fill is always true or false, never null
+- Return raw lowercase values only"""
+
+def extract_description_fields(description_segment: str) -> dict:
+    """
+    Sends the description segment to Claude and extracts structured soil fields.
+    Replaces the old substring-based parser for soil name, color, moisture,
+    components, inclusions and fill.
+    
+    Input:  "silty clay till trace sand dark brown moist"
+    Output: {
+        "soil_name": "silty clay till",
+        "components": ["trace sand"],
+        "color": "dark brown",
+        "moisture": "moist",
+        "inclusions": [],
+        "fill": false
+    }
+    
+    Returns dict with null values for missing fields — never crashes.
+    """
+    if not description_segment:
+        return {
+            "soil_name": None,
+            "components": [],
+            "color": None,
+            "moisture": None,
+            "inclusions": [],
+            "fill": False
+        }
+    
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=500,
+        system=EXTRACTION_PROMPT,
+        messages=[
+            {
+                "role": "user",
+                "content": description_segment
+            }
+        ]
+    )
+    
+    # Parse the JSON response
+    import json
+    try:
+        raw = message.content[0].text.strip()
+        # Strip markdown code fences if Claude adds them
+        raw = raw.replace("```json", "").replace("```", "").strip()
+        fields = json.loads(raw)
+        return fields
+    except json.JSONDecodeError:
+        # If parsing fails return empty fields with a flag
+        return {
+            "soil_name": None,
+            "components": [],
+            "color": None,
+            "moisture": None,
+            "inclusions": [],
+            "fill": False,
+            "parse_error": "Claude extraction failed — manual input required"
+        }
 # ─────────────────────────────────────────────
 # COMPONENT SORTER
 # Ensures components are always ordered most → least significant

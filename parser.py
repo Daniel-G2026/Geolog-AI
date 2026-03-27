@@ -112,7 +112,46 @@ def segment_transcript(transcript: str):
 
     return    segment_dict
 
-dict = segment_transcript('soil description silty clay till trace sand dark brown moist blows 12 17 19 23 recovery 280 comments wet spoon')
+def parse_blow_counts_from_string(blows_string: str) -> list:
+  
+    if not blows_string:
+        return []
+    
+    raw = blows_string.replace(",", " ").split()
+    
+    counts = []
+    for item in raw:
+        try:
+            counts.append(int(item))
+        except ValueError:
+            continue  # skip anything that isn't a number
+    
+    if len(counts) == 0 or len(counts) > 4:
+        return []
+    
+    return counts
+
+def parse_recovery(recovery_string: str) -> tuple:
+    if not recovery_string:
+        return (None, "Recovery not found - manual input required")
+    
+    num_string = ""
+    for i, char in enumerate(recovery_string):
+        if char.isdigit():
+            num_string += char
+        elif char == "." and num_string and i + 1 < len(recovery_string) and recovery_string[i + 1].isdigit():
+            num_string += char
+        elif char == " " and num_string:
+            break
+    
+    if not num_string:
+        return (None, "Recovery not found - manual input required")
+    
+    try:
+        return (float(num_string), None)
+    except ValueError:
+        return (None, "Recovery not found - manual input required")
+
 def substring_check(terms: list, transcript: str) -> list:
     """
     Loops through a list of terms and returns all that appear in the transcript.
