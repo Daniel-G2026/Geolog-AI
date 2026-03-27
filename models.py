@@ -12,6 +12,7 @@ from typing import Optional
 @dataclass
 class SampleEntry:
     # ── Sample identification ──
+    depth_ft: float
     depth_m: float
     sample_type: str          # "SS" for split spoon, "RC" for rock core
     sample_no: int
@@ -36,7 +37,7 @@ class SampleEntry:
     flags: list = field(default_factory=list)
 
     # ── Comments ──
-    comments: str = ""
+    comments: Optional[str] = None
 
     # ── Metadata ──
     timestamp: str = field(default_factory=lambda: datetime.now().strftime("%H:%M"))
@@ -87,6 +88,5 @@ class BoreholeLog:
         for sample in self.samples:
             if sample.sample_no == sample_no:
                 return sample
-            else:
-                return None
+        return None
         

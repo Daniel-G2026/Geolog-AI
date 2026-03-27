@@ -167,60 +167,84 @@ def sort_components(components: list) -> list:
 # MAIN PIPELINE FUNCTION
 # ─────────────────────────────────────────────
 
-def combination(transcript: str, blow_counts: list, pen_depths: list) -> dict:
+def combination(transcript: str, blow_counts: list, pen_depths: list,
+                sample_no: int, depth_ft: float, sample_type: str = "SS"):
     """
-    Main pipeline function. Full flow:
+    Refactored main pipeline function.
+    Now returns a complete SampleEntry object instead of a plain dict.
     
-    1. parse_transcript(transcript) → structured JSON with all soil fields
-    2. Early exit if soil_name is None (irrelevant/unrecognized transcript)
-    3. sort_components() — order components most to least significant
-    4. parse_blow_counts(blow_counts, pen_depths) → n_value + n_value_log
-    5. get_consistency_density(soil_name, n_value) → consistency/density term
-    6. Add consistency and n_value_log to soil_data dict
-    7. Send complete soil_data JSON to Claude API with SYSTEM_PROMPT
-    8. Return {description, n_value_log, flags}
-    
-    Inputs:
-    - transcript:   raw voice transcript string from Whisper (or typed text for now)
-    - blow_counts:  list of 1–4 SPT blow count integers
-    - pen_depths:   list of corresponding penetration depths in inches
-    
-    Returns dict:
-    {
-        "description": formatted Envision log string (or None if irrelevant),
-        "n_value_log": string for the log e.g. "18" or "62/254mm",
-        "flags":       list of any manual review messages for the UI
-    }
+    Flow:
+    1. segment_transcript() — split raw transcript by keywords
+    2. extract_description_fields() — Claude extracts soil fields from description segment
+    3. Early exit if no soil name found
+    4. parse_blow_counts_from_string() — convert blows string to list (if not provided)
+    5. parse_blow_counts() — calculate N-value and log notation
+    6. get_consistency_density() — classify consistency/density term
+    7. parse_recovery() — extract recovery in inches, convert to mm
+    8. sort_components() — order components most to least
+    9. Assemble soil_data dict for formatting
+    10. Claude formatting prompt — produce Envision description
+    11. Return complete SampleEntry object
     """
+    from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery
+    from models import SampleEntry
 
-    # Step 1 — parse the transcript into structured fields
-    soil_data = parse_transcript(transcript)
+    # Step 1 — segment the transcript by keywords
+    segments = segment_transcript(transcript)
 
-    # Step 2 — early exit if transcript was irrelevant or soil unrecognized
-    # No point calling the API if we have nothing to format
-    if soil_data["soil_name"] is None:
-        return {
-            "description": None,
-            "n_value_log": None,
-            "flags": soil_data["flags"]
-        }
+    # Step 2 — extract description fields via Claude
+    description_segment = segments.get("description", "")
+    fields = extract_description_fields(description_segment)
 
-    # Step 3 — sort components most to least before sending to Claude
-    soil_data["components"] = sort_components(soil_data["components"])
+    # Step 3 — early exit if no soil name found
+    if not fields.get("soil_name"):
+        return SampleEntry(
+            depth_ft=depth_ft,
+            depth_m=round(depth_ft * 0.3048, 2),
+            sample_type=sample_type,
+            sample_no=sample_no,
+            blow_counts=blow_counts,
+            pen_depths=pen_depths,
+            n_value=0,
+            n_value_log="",
+            refusal=False,
+            raw_transcript=transcript,
+            flags=["No soil type recognized — manual input required"]
+        )
 
-    # Step 4 — process blow counts into N-value and log notation
+    # Step 4 — parse blow counts
+    # If blow_counts not provided as a list, parse from transcript segment
+    if not blow_counts:
+        blow_counts = parse_blow_counts_from_string(segments.get("blows", ""))
+
+    # Step 5 — calculate N-value and log notation
     blow_count_data = parse_blow_counts(blow_counts, pen_depths)
 
-    # Step 5 — classify consistency/density from soil name + N-value
-    # Python does this — Claude never determines this term
-    consistency = get_consistency_density(soil_data["soil_name"], blow_count_data["n_value"])
-    soil_data["consistency"] = consistency     
+    # Step 6 — classify consistency/density
+    consistency = get_consistency_density(
+        fields["soil_name"], blow_count_data["n_value"]
+    )
 
-    # Step 6 — add log notation to the data dict so Claude can include it if needed
-    soil_data["n_value_log"] = blow_count_data["n_value_log"]
+    # Step 7 — parse recovery (in inches) and convert to mm
+    recovery_inches, recovery_flag = parse_recovery(segments.get("recovery", ""))
+    recovery_mm = round(recovery_inches * 25.4) if recovery_inches else None
 
-    # Step 7 — send fully assembled JSON to Claude API
-    # Claude's only job here is formatting — all values are already determined
+    # Step 8 — sort components most to least significant
+    fields["components"] = sort_components(fields.get("components", []))
+
+    # Step 9 — assemble complete soil_data for Claude formatting
+    soil_data = {
+        "soil_name": fields["soil_name"],
+        "components": fields["components"],
+        "inclusions": fields.get("inclusions", []),
+        "color": fields.get("color"),
+        "moisture": fields.get("moisture"),
+        "fill": fields.get("fill", False),
+        "split_layer": isinstance(fields["soil_name"], list),
+        "consistency": consistency,
+    }
+
+    # Step 10 — Claude formatting prompt — produces Envision description
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
@@ -228,31 +252,68 @@ def combination(transcript: str, blow_counts: list, pen_depths: list) -> dict:
         messages=[
             {
                 "role": "user",
-                "content": json.dumps(soil_data, indent=2)  # indent=2 for readable input
+                "content": json.dumps(soil_data, indent=2)
             }
         ]
     )
 
-    # Step 8 — return the formatted description + any flags for the UI
-    return {
-        "description": message.content[0].text,
-        "n_value_log": blow_count_data["n_value_log"],
-        "flags": soil_data["flags"]  # pass through any extraction flags to UI
-    }
+    description = message.content[0].text
+    flags = []
+    comments = segments.get("comments")
+     # Recovery validation
+    total_penetration = sum(pen_depths)
+    if recovery_inches and recovery_inches < total_penetration:
+        recovery_note = f"Partial recovery: {recovery_inches}\" of {total_penetration}\" penetrated"
+        if comments:
+            comments = f"{comments}. {recovery_note}"
+        else:
+            comments = recovery_note
+    elif recovery_inches and recovery_inches > total_penetration:
+        flags.append("Recovery exceeds penetration — verify")
+        # Collect all flags
+
+    
+
+    # Check for missing critical fields from extraction
+    if not fields.get("color"):
+        flags.append("Color not found — manual input required")
+    if not fields.get("moisture"):
+        flags.append("Moisture not found — manual input required")
+    if not fields.get("soil_name"):
+        flags.append("Soil name not recognized — manual input required")
+    if consistency is None:
+        flags.append("Soil type unrecognized — consistency requires manual input")
+    if recovery_flag:
+        flags.append(recovery_flag)
+    if fields.get("parse_error"):
+        flags.append(fields["parse_error"])
+
+    # Step 11 — return complete SampleEntry object
+    return SampleEntry(
+        depth_ft=depth_ft,
+        depth_m=round(depth_ft * 0.3048, 2),
+        sample_type=sample_type,
+        sample_no=sample_no,
+        blow_counts=blow_counts,
+        pen_depths=pen_depths,
+        n_value=blow_count_data["n_value"],
+        n_value_log=blow_count_data["n_value_log"],
+        refusal=blow_count_data["refusal"],
+        recovery_inches=recovery_inches,
+        recovery_mm=recovery_mm,
+        raw_transcript=transcript,
+        description=description,
+        flags=flags,
+        comments=comments
+    )
 
 
-
-def run_from_voice(audio_file_path: str, blow_counts: list, pen_depths: list) -> dict:
+def run_from_voice(audio_file_path: str, blow_counts: list, pen_depths: list,
+                   sample_no: int, depth_ft: float, sample_type: str = "SS"):
     """
     Full pipeline starting from an audio file.
-    
-    1. Transcribe audio file using Whisper
-    2. Pass transcript to combination()
-    3. Return formatted description
-    
-    Input:  audio file path + blow counts + pen depths
-    Output: same dict as combination()
+    Returns a complete SampleEntry object.
     """
     transcript = transcribe(audio_file_path)
-    print(f"Transcript: {transcript}")  # helpful for debugging during field testing
-    return combination(transcript, blow_counts, pen_depths)
+    print(f"Transcript: {transcript}")
+    return combination(transcript, blow_counts, pen_depths, sample_no, depth_ft, sample_type)
