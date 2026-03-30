@@ -9,6 +9,12 @@ from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pipeline import run_from_voice
 from pydantic import BaseModel
+from supabase import create_client
+
+supabase_client = create_client(
+    os.environ.get("SUPABASE_URL"),
+    os.environ.get("SUPABASE_KEY")
+)
 
 app = FastAPI()
 
@@ -62,3 +68,15 @@ async def log_sample(
 
     # 5. Return SampleEntry as JSON
     return asdict(result)
+@app.post("/confirm-sample")
+async def confirm_sample(sample_data: str = Form(...)):
+    data = json.loads(sample_data)
+    
+    # Convert lists to JSON strings for storage
+    data["blow_counts"] = json.dumps(data["blow_counts"])
+    data["pen_depths"] = json.dumps(data["pen_depths"])
+    data["flags"] = json.dumps(data["flags"])
+    
+    
+    result = supabase_client.table("log_entries").insert(data).execute()
+    return {"saved": True, "id": result.data[0]["id"]}
