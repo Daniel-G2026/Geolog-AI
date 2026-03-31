@@ -8,7 +8,6 @@ from dataclasses import asdict
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pipeline import run_from_voice
-from pydantic import BaseModel
 from supabase import create_client
 
 supabase_client = create_client(
@@ -27,16 +26,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Request body model ──
-class SampleRequest(BaseModel):
-    # YOUR FIELDS HERE
-    pen_depths: list
-    sample_no: int
-    depth_ft: float
 # ── Health check endpoint ──
 @app.get("/health")
 def health():
-    # YOUR CODE HERE
     return {"status": "ok"}
 
 # ── Main logging endpoint ──

@@ -320,7 +320,6 @@ def run_from_voice(audio_file_path: str, pen_depths: list,
     Returns a complete SampleEntry object.
     """
     transcript = transcribe(audio_file_path)
-    print(f"Transcript: {transcript}")
     return combination(
         transcript=transcript,
         blow_counts=[],      # always empty — extracted from transcript
