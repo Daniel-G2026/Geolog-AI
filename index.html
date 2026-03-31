@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>GeoLog AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0d0f0e;
+            --surface: #161918;
+            --surface2: #1e2220;
+            --border: #2a2e2c;
+            --accent: #4ade80;
+            --accent-dim: #16a34a;
+            --danger: #f87171;
+            --warn: #fbbf24;
+            --text: #e2e8e4;
+            --text-dim: #6b7a72;
+            --text-mid: #9aaba2;
+            --record: #ef4444;
+            --record-glow: rgba(239, 68, 68, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'IBM Plex Sans', sans-serif;
+            min-height: 100vh;
+            padding: 0 0 60px 0;
+        }
+
+        /* ── HEADER ── */
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--accent);
+            letter-spacing: -0.5px;
+        }
+
+        .logo span {
+            color: var(--text-dim);
+            font-weight: 400;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+        }
+
+        /* ── MAIN CONTAINER ── */
+        main {
+            padding: 20px 16px;
+            max-width: 480px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* ── CARDS ── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .card-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        /* ── INPUTS ── */
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-group label {
+            font-size: 11px;
+            color: var(--text-dim);
+            font-family: 'IBM Plex Mono', monospace;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="number"],
+        input[type="text"] {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 14px;
+            color: var(--text);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 18px;
+            font-weight: 600;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.15s;
+            -webkit-appearance: none;
+        }
+
+        input:focus {
+            border-color: var(--accent);
+        }
+
+        input::placeholder {
+            color: var(--text-dim);
+            font-weight: 400;
+            font-size: 14px;
+        }
+
+        /* ── RECORD SECTION ── */
+        .record-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .record-btn {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: var(--record);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            box-shadow: 0 0 0 0 var(--record-glow);
+            position: relative;
+        }
+
+        .record-btn:active {
+            transform: scale(0.94);
+        }
+
+        .record-btn.recording {
+            animation: pulse 1.5s ease-in-out infinite;
+            background: #dc2626;
+        }
+
+        .record-btn svg {
+            width: 32px;
+            height: 32px;
+            fill: white;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 var(--record-glow); }
+            70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .record-status {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px;
+            color: var(--text-dim);
+            text-align: center;
+            min-height: 20px;
+        }
+
+        .record-status.active {
+            color: var(--record);
+        }
+
+        .record-status.processing {
+            color: var(--warn);
+        }
+
+        .record-hint {
+            font-size: 12px;
+            color: var(--text-dim);
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        .record-hint code {
+            font-family: 'IBM Plex Mono', monospace;
+            background: var(--surface2);
+            padding: 1px 5px;
+            border-radius: 4px;
+            color: var(--accent);
+            font-size: 11px;
+        }
+
+        /* ── STOP BUTTON ── */
+        .stop-btn {
+            width: 100%;
+            padding: 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.15s;
+        }
+
+        .stop-btn.visible {
+            display: flex;
+        }
+
+        .stop-btn:active {
+            background: var(--border);
+        }
+
+        /* ── RESULT CARD ── */
+        .result-card {
+            background: var(--surface);
+            border: 1px solid var(--accent-dim);
+            border-radius: 12px;
+            padding: 16px;
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .result-card.visible {
+            display: flex;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .result-badge {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            color: var(--accent);
+            text-transform: uppercase;
+        }
+
+        .sample-id {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        .description-text {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 14px;
+            color: var(--text);
+            line-height: 1.6;
+            padding: 12px;
+            background: var(--surface2);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent);
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .result-field {
+            background: var(--surface2);
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        .result-field-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .result-field-value {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .flags-box {
+            background: rgba(248, 113, 113, 0.08);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        .flags-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 1px;
+            color: var(--danger);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .flag-item {
+            font-size: 12px;
+            color: var(--danger);
+            line-height: 1.5;
+        }
+
+        .comments-box {
+            background: var(--surface2);
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        .comments-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .comments-text {
+            font-size: 13px;
+            color: var(--text-mid);
+            line-height: 1.5;
+        }
+
+        /* ── CONFIRM BUTTON ── */
+        .confirm-btn {
+            width: 100%;
+            padding: 16px;
+            background: var(--accent);
+            border: none;
+            border-radius: 10px;
+            color: #0d1a12;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-transform: uppercase;
+        }
+
+        .confirm-btn:active {
+            background: var(--accent-dim);
+            transform: scale(0.98);
+        }
+
+        .confirm-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ── SAVED TOAST ── */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: var(--accent);
+            color: #0d1a12;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 12px 24px;
+            border-radius: 100px;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 200;
+            white-space: nowrap;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ── TRANSCRIPT ── */
+        .transcript-box {
+            background: var(--surface2);
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        .transcript-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .transcript-text {
+            font-size: 12px;
+            color: var(--text-dim);
+            line-height: 1.5;
+            font-style: italic;
+        }
+
+        /* ── NEW SAMPLE BUTTON ── */
+        .new-btn {
+            width: 100%;
+            padding: 14px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-dim);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: none;
+        }
+
+        .new-btn.visible {
+            display: block;
+        }
+
+        .new-btn:active {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* ── LOADING SPINNER ── */
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--warn);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ── ERROR STATE ── */
+        .error-box {
+            background: rgba(248, 113, 113, 0.08);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            color: var(--danger);
+            display: none;
+        }
+
+        .error-box.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">GeoLog<span>.ai</span></div>
+    <div class="status-dot"></div>
+</header>
+
+<main>
+
+    <!-- INPUT FIELDS -->
+    <div class="card">
+        <div class="card-label">Sample Info</div>
+        <div class="input-row">
+            <div class="input-group">
+                <label>Depth (ft)</label>
+                <input type="number" id="depth_ft" placeholder="5.0" step="0.5" min="0">
+            </div>
+            <div class="input-group">
+                <label>Sample No.</label>
+                <input type="number" id="sample_no" placeholder="1" min="1" value="1">
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-label">Pen Depths (inches)</div>
+        <div class="input-group">
+            <label>Enter 1–4 values separated by commas</label>
+            <input type="text" id="pen_depths" placeholder="6, 6, 6, 6">
+        </div>
+    </div>
+
+    <!-- RECORD SECTION -->
+    <div class="record-card">
+        <div class="record-btn" id="recordBtn" onclick="toggleRecord()">
+            <!-- Microphone icon -->
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
+        </div>
+
+        <div class="record-status" id="recordStatus">Tap to record</div>
+
+        <div class="record-hint">
+            Say: <code>description</code> → soil info → <code>blows</code> → counts → <code>recovery</code> → inches → <code>comments</code> → remarks
+        </div>
+
+        <button class="stop-btn" id="stopBtn" onclick="stopRecording()">
+            ⏹ &nbsp;Stop Recording
+        </button>
+    </div>
+
+    <!-- ERROR BOX -->
+    <div class="error-box" id="errorBox"></div>
+
+    <!-- RESULT CARD -->
+    <div class="result-card" id="resultCard">
+        <div class="result-header">
+            <div class="result-badge">✓ Entry Ready</div>
+            <div class="sample-id" id="sampleId">SS-1 @ 0.00m</div>
+        </div>
+
+        <div class="description-text" id="descriptionText"></div>
+
+        <div class="result-grid">
+            <div class="result-field">
+                <div class="result-field-label">N-Value</div>
+                <div class="result-field-value" id="nValueDisplay">—</div>
+            </div>
+            <div class="result-field">
+                <div class="result-field-label">Recovery</div>
+                <div class="result-field-value" id="recoveryDisplay">—</div>
+            </div>
+        </div>
+
+        <div class="comments-box" id="commentsBox" style="display:none">
+            <div class="comments-label">Comments</div>
+            <div class="comments-text" id="commentsText"></div>
+        </div>
+
+        <div class="flags-box" id="flagsBox" style="display:none">
+            <div class="flags-label">⚠ Flags — Review Required</div>
+            <div id="flagsList"></div>
+        </div>
+
+        <div class="transcript-box">
+            <div class="transcript-label">Transcript</div>
+            <div class="transcript-text" id="transcriptText"></div>
+        </div>
+
+        <button class="confirm-btn" id="confirmBtn" onclick="confirmSample()">
+            ✓ &nbsp;Confirm & Save
+        </button>
+    </div>
+
+    <!-- NEW SAMPLE BUTTON -->
+    <button class="new-btn" id="newBtn" onclick="resetForNewSample()">
+        + New Sample
+    </button>
+
+</main>
+
+<!-- TOAST -->
+<div class="toast" id="toast">✓ Saved to log</div>
+
+<script>
+    // ── CONFIG ──
+    const API_BASE = window.location.origin; // uses the same server
+    
+    // ── STATE ──
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+    let currentSampleData = null;
+
+    // ── TOGGLE RECORD ──
+    function toggleRecord() {
+        if (isRecording) return; // use stop button to stop
+        startRecording();
+    }
+
+    // ── START RECORDING ──
+    async function startRecording() {
+        // Validate inputs before recording
+        const depth = document.getElementById('depth_ft').value;
+        const penDepths = document.getElementById('pen_depths').value;
+
+        if (!depth) {
+            showError('Please enter depth before recording.');
+            return;
+        }
+        if (!penDepths) {
+            showError('Please enter pen depths before recording.');
+            return;
+        }
+
+        hideError();
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioChunks = [];
+            mediaRecorder = new MediaRecorder(stream);
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                stream.getTracks().forEach(t => t.stop());
+                await submitSample(audioBlob);
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+
+            // Update UI
+            document.getElementById('recordBtn').classList.add('recording');
+            document.getElementById('recordStatus').textContent = '● Recording...';
+            document.getElementById('recordStatus').className = 'record-status active';
+            document.getElementById('stopBtn').classList.add('visible');
+            document.getElementById('resultCard').classList.remove('visible');
+            document.getElementById('newBtn').classList.remove('visible');
+
+        } catch (err) {
+            showError('Microphone access denied. Please allow microphone and try again.');
+        }
+    }
+
+    // ── STOP RECORDING ──
+    function stopRecording() {
+        if (mediaRecorder && isRecording) {
+            mediaRecorder.stop();
+            isRecording = false;
+
+            document.getElementById('recordBtn').classList.remove('recording');
+            document.getElementById('recordStatus').textContent = 'Processing...';
+            document.getElementById('recordStatus').className = 'record-status processing';
+            document.getElementById('stopBtn').classList.remove('visible');
+        }
+    }
+
+    // ── SUBMIT TO /log-sample ──
+    async function submitSample(audioBlob) {
+        const depth_ft = parseFloat(document.getElementById('depth_ft').value);
+        const sample_no = parseInt(document.getElementById('sample_no').value);
+        const penRaw = document.getElementById('pen_depths').value;
+
+        // Parse pen depths
+        const pen_depths = penRaw.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+
+        if (pen_depths.length === 0) {
+            showError('Invalid pen depths. Enter comma-separated numbers e.g. 6, 6, 6, 6');
+            resetStatus();
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'recording.webm');
+        formData.append('pen_depths', JSON.stringify(pen_depths));
+        formData.append('sample_no', sample_no);
+        formData.append('depth_ft', depth_ft);
+
+        try {
+            document.getElementById('recordStatus').textContent = 'Transcribing + extracting...';
+
+            const response = await fetch(`${API_BASE}/log-sample`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(JSON.stringify(err));
+            }
+
+            const data = await response.json();
+            currentSampleData = data;
+            displayResult(data);
+
+        } catch (err) {
+            showError('Pipeline error — check server. ' + err.message.slice(0, 100));
+            resetStatus();
+        }
+    }
+
+    // ── DISPLAY RESULT ──
+    function displayResult(data) {
+        // Sample ID
+        document.getElementById('sampleId').textContent =
+            `SS-${data.sample_no} @ ${data.depth_m}m`;
+
+        // Description
+        document.getElementById('descriptionText').textContent =
+            data.description || '—';
+
+        // N-value
+        document.getElementById('nValueDisplay').textContent =
+            data.n_value_log || '—';
+
+        // Recovery
+        if (data.recovery_inches) {
+            document.getElementById('recoveryDisplay').textContent =
+                `${data.recovery_inches}" / ${data.recovery_mm}mm`;
+        } else {
+            document.getElementById('recoveryDisplay').textContent = '—';
+        }
+
+        // Comments
+        if (data.comments) {
+            document.getElementById('commentsText').textContent = data.comments;
+            document.getElementById('commentsBox').style.display = 'block';
+        } else {
+            document.getElementById('commentsBox').style.display = 'none';
+        }
+
+        // Flags
+        if (data.flags && data.flags.length > 0) {
+            const flagsList = document.getElementById('flagsList');
+            flagsList.innerHTML = data.flags.map(f =>
+                `<div class="flag-item">• ${f}</div>`
+            ).join('');
+            document.getElementById('flagsBox').style.display = 'block';
+        } else {
+            document.getElementById('flagsBox').style.display = 'none';
+        }
+
+        // Transcript
+        document.getElementById('transcriptText').textContent =
+            data.raw_transcript || '';
+
+        // Show result card
+        document.getElementById('resultCard').classList.add('visible');
+        document.getElementById('newBtn').classList.remove('visible');
+
+        // Reset status
+        document.getElementById('recordStatus').textContent = 'Tap to record';
+        document.getElementById('recordStatus').className = 'record-status';
+
+        // Scroll to result
+        document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // ── CONFIRM & SAVE ──
+    async function confirmSample() {
+        if (!currentSampleData) return;
+
+        const btn = document.getElementById('confirmBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+            const formData = new FormData();
+            formData.append('sample_data', JSON.stringify(currentSampleData));
+
+            const response = await fetch(`${API_BASE}/confirm-sample`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) throw new Error('Save failed');
+
+            const result = await response.json();
+
+            // Show toast
+            showToast(`✓ Saved — ID ${result.id}`);
+
+            // Update UI
+            btn.textContent = '✓ Saved';
+            document.getElementById('newBtn').classList.add('visible');
+
+            // Auto-increment sample number
+            const currentNo = parseInt(document.getElementById('sample_no').value) || 1;
+            document.getElementById('sample_no').value = currentNo + 1;
+
+        } catch (err) {
+            showError('Save failed — check connection.');
+            btn.disabled = false;
+            btn.textContent = '✓ Confirm & Save';
+        }
+    }
+
+    // ── RESET FOR NEW SAMPLE ──
+    function resetForNewSample() {
+        currentSampleData = null;
+        document.getElementById('resultCard').classList.remove('visible');
+        document.getElementById('newBtn').classList.remove('visible');
+        document.getElementById('confirmBtn').disabled = false;
+        document.getElementById('confirmBtn').textContent = '✓  Confirm & Save';
+        document.getElementById('depth_ft').value = '';
+        document.getElementById('pen_depths').value = '';
+        hideError();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ── HELPERS ──
+    function showError(msg) {
+        const box = document.getElementById('errorBox');
+        box.textContent = msg;
+        box.classList.add('visible');
+    }
+
+    function hideError() {
+        document.getElementById('errorBox').classList.remove('visible');
+    }
+
+    function resetStatus() {
+        document.getElementById('recordStatus').textContent = 'Tap to record';
+        document.getElementById('recordStatus').className = 'record-status';
+        isRecording = false;
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+</script>
+
+</body>
+</html>

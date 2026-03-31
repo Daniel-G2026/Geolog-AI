@@ -9,7 +9,7 @@ from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pipeline import run_from_voice
 from supabase import create_client
-
+from fastapi.responses import HTMLResponse
 supabase_client = create_client(
     os.environ.get("SUPABASE_URL"),
     os.environ.get("SUPABASE_KEY")
@@ -72,3 +72,8 @@ async def confirm_sample(sample_data: str = Form(...)):
     
     result = supabase_client.table("log_entries").insert(data).execute()
     return {"saved": True, "id": result.data[0]["id"]}
+
+@app.get("/")
+def serve_ui():
+    with open("index.html", "r") as f:
+        return HTMLResponse(content=f.read())
