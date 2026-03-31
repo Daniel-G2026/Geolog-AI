@@ -7,6 +7,7 @@
 import json
 import os
 import anthropic
+from math import isclose
 from dotenv import load_dotenv
 from pathlib import Path
 from whisper import transcribe
@@ -281,20 +282,23 @@ def combination(transcript: str, blow_counts: list, pen_depths: list,
     )
     description = message.content[0].text
 
-    # Step 11 — recovery validation and comments assembly
+    # Step 11 — recovery vs sum of pen depths (total penetration interval)
+    # Recovery cannot exceed total inches driven. When it does, flag for manual review.
+    # Recovery below total penetration: no comment or flag changes (voice comments unchanged).
     comments = segments.get("comments")
     total_penetration = sum(pen_depths)
-    if recovery_inches and recovery_inches < total_penetration:
-        recovery_note = f"Partial recovery: {recovery_inches}\" of {total_penetration}\" penetrated"
-        comments = f"{comments}. {recovery_note}" if comments else recovery_note
-    elif recovery_inches and recovery_inches > total_penetration:
-        # Will be added to flags below
-        pass
+    recovery_vs_pen_flags = []
+    if recovery_inches is not None:
+        if not isclose(recovery_inches, total_penetration, rel_tol=0.0, abs_tol=0.05):
+            if recovery_inches > total_penetration:
+                recovery_vs_pen_flags.append(
+                    "Recovery exceeds total penetration "
+                    f"({recovery_inches}\" recovery vs {total_penetration}\" penetrated) — "
+                    "manual review required"
+                )
 
     # Collect all flags
-    flags = []
-    if recovery_inches and recovery_inches > total_penetration:
-        flags.append("Recovery exceeds penetration — verify")
+    flags = list(recovery_vs_pen_flags)
     if not fields.get("color"):
         flags.append("Color not found — manual input required")
     if not fields.get("moisture"):
