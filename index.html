@@ -22,12 +22,7 @@
             --record-glow: rgba(239, 68, 68, 0.3);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         body {
             background: var(--bg);
@@ -37,7 +32,6 @@
             padding: 0 0 60px 0;
         }
 
-        /* ── HEADER ── */
         header {
             background: var(--surface);
             border-bottom: 1px solid var(--border);
@@ -50,77 +44,20 @@
             z-index: 100;
         }
 
-        .logo {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--accent);
-            letter-spacing: -0.5px;
-        }
+        .logo { font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 600; color: var(--accent); }
+        .logo span { color: var(--text-dim); font-weight: 400; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
 
-        .logo span {
-            color: var(--text-dim);
-            font-weight: 400;
-        }
+        main { padding: 20px 16px; max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
 
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--accent);
-            box-shadow: 0 0 8px var(--accent);
-        }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+        .card-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 10px; }
 
-        /* ── MAIN CONTAINER ── */
-        main {
-            padding: 20px 16px;
-            max-width: 480px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
+        .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .input-group { display: flex; flex-direction: column; gap: 6px; }
+        .input-group label { font-size: 11px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; }
 
-        /* ── CARDS ── */
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 16px;
-        }
-
-        .card-label {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 10px;
-            font-weight: 600;
-            letter-spacing: 1.5px;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            margin-bottom: 10px;
-        }
-
-        /* ── INPUTS ── */
-        .input-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .input-group label {
-            font-size: 11px;
-            color: var(--text-dim);
-            font-family: 'IBM Plex Mono', monospace;
-            letter-spacing: 0.5px;
-        }
-
-        input[type="number"],
-        input[type="text"] {
+        input[type="number"], input[type="text"] {
             background: var(--surface2);
             border: 1px solid var(--border);
             border-radius: 8px;
@@ -134,18 +71,9 @@
             transition: border-color 0.15s;
             -webkit-appearance: none;
         }
+        input:focus { border-color: var(--accent); }
+        input::placeholder { color: var(--text-dim); font-weight: 400; font-size: 14px; }
 
-        input:focus {
-            border-color: var(--accent);
-        }
-
-        input::placeholder {
-            color: var(--text-dim);
-            font-weight: 400;
-            font-size: 14px;
-        }
-
-        /* ── RECORD SECTION ── */
         .record-card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -158,100 +86,44 @@
         }
 
         .record-btn {
-            width: 90px;
-            height: 90px;
+            width: 90px; height: 90px;
             border-radius: 50%;
             background: var(--record);
-            border: none;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
             transition: all 0.2s;
-            box-shadow: 0 0 0 0 var(--record-glow);
-            position: relative;
         }
-
-        .record-btn:active {
-            transform: scale(0.94);
-        }
-
-        .record-btn.recording {
-            animation: pulse 1.5s ease-in-out infinite;
-            background: #dc2626;
-        }
-
-        .record-btn svg {
-            width: 32px;
-            height: 32px;
-            fill: white;
-        }
+        .record-btn:active { transform: scale(0.94); }
+        .record-btn.recording { animation: pulse 1.5s ease-in-out infinite; background: #dc2626; }
+        .record-btn svg { width: 32px; height: 32px; fill: white; }
 
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 var(--record-glow); }
-            70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+            70% { box-shadow: 0 0 0 20px rgba(239,68,68,0); }
+            100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
         }
 
-        .record-status {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 13px;
-            color: var(--text-dim);
-            text-align: center;
-            min-height: 20px;
-        }
+        .record-status { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--text-dim); text-align: center; }
+        .record-status.active { color: var(--record); }
+        .record-status.processing { color: var(--warn); }
 
-        .record-status.active {
-            color: var(--record);
-        }
+        .record-hint { font-size: 12px; color: var(--text-dim); text-align: center; line-height: 1.6; }
+        .record-hint code { font-family: 'IBM Plex Mono', monospace; background: var(--surface2); padding: 1px 5px; border-radius: 4px; color: var(--accent); font-size: 11px; }
 
-        .record-status.processing {
-            color: var(--warn);
-        }
-
-        .record-hint {
-            font-size: 12px;
-            color: var(--text-dim);
-            text-align: center;
-            line-height: 1.6;
-        }
-
-        .record-hint code {
-            font-family: 'IBM Plex Mono', monospace;
-            background: var(--surface2);
-            padding: 1px 5px;
-            border-radius: 4px;
-            color: var(--accent);
-            font-size: 11px;
-        }
-
-        /* ── STOP BUTTON ── */
         .stop-btn {
-            width: 100%;
-            padding: 14px;
+            width: 100%; padding: 14px;
             background: var(--surface2);
             border: 1px solid var(--border);
             border-radius: 10px;
             color: var(--text);
             font-family: 'IBM Plex Mono', monospace;
-            font-size: 14px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
+            font-size: 14px; font-weight: 600;
             cursor: pointer;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
+            display: none; align-items: center; justify-content: center; gap: 8px;
             transition: all 0.15s;
         }
-
-        .stop-btn.visible {
-            display: flex;
-        }
-
-        .stop-btn:active {
-            background: var(--border);
-        }
+        .stop-btn.visible { display: flex; }
+        .stop-btn:active { background: var(--border); }
 
         /* ── RESULT CARD ── */
         .result-card {
@@ -263,241 +135,117 @@
             flex-direction: column;
             gap: 12px;
         }
+        .result-card.visible { display: flex; }
 
-        .result-card.visible {
-            display: flex;
-        }
-
-        .result-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .result-badge {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 10px;
-            font-weight: 600;
-            letter-spacing: 1.5px;
-            color: var(--accent);
-            text-transform: uppercase;
-        }
-
-        .sample-id {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 12px;
-            color: var(--text-dim);
-        }
+        .result-header { display: flex; align-items: center; justify-content: space-between; }
+        .result-badge { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--accent); text-transform: uppercase; }
+        .sample-id { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text-dim); }
 
         .description-text {
             font-family: 'IBM Plex Mono', monospace;
-            font-size: 14px;
-            color: var(--text);
-            line-height: 1.6;
-            padding: 12px;
+            font-size: 14px; color: var(--text);
+            line-height: 1.6; padding: 12px;
             background: var(--surface2);
             border-radius: 8px;
             border-left: 3px solid var(--accent);
         }
 
-        .result-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
+        /* FIX 1 — blow counts now in a 3-column grid so they show up */
+        .result-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 
-        .result-field {
+        .result-field { background: var(--surface2); border-radius: 8px; padding: 10px 12px; }
+        .result-field-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; }
+        .result-field-value { font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600; color: var(--text); }
+
+        /* FIX 4 — editable fields section */
+        .edit-section { display: flex; flex-direction: column; gap: 8px; }
+        .edit-section-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--text-dim); text-transform: uppercase; }
+
+        .edit-field { display: flex; flex-direction: column; gap: 4px; }
+        .edit-field label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; }
+        .edit-field textarea, .edit-field input {
             background: var(--surface2);
+            border: 1px solid var(--border);
             border-radius: 8px;
             padding: 10px 12px;
-        }
-
-        .result-field-label {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 9px;
-            letter-spacing: 1px;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }
-
-        .result-field-value {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 16px;
-            font-weight: 600;
             color: var(--text);
-        }
-
-        .flags-box {
-            background: rgba(248, 113, 113, 0.08);
-            border: 1px solid rgba(248, 113, 113, 0.3);
-            border-radius: 8px;
-            padding: 10px 12px;
-        }
-
-        .flags-label {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 9px;
-            letter-spacing: 1px;
-            color: var(--danger);
-            text-transform: uppercase;
-            margin-bottom: 6px;
-        }
-
-        .flag-item {
-            font-size: 12px;
-            color: var(--danger);
-            line-height: 1.5;
-        }
-
-        .comments-box {
-            background: var(--surface2);
-            border-radius: 8px;
-            padding: 10px 12px;
-        }
-
-        .comments-label {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 9px;
-            letter-spacing: 1px;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }
-
-        .comments-text {
-            font-size: 13px;
-            color: var(--text-mid);
-            line-height: 1.5;
-        }
-
-        /* ── CONFIRM BUTTON ── */
-        .confirm-btn {
-            width: 100%;
-            padding: 16px;
-            background: var(--accent);
-            border: none;
-            border-radius: 10px;
-            color: #0d1a12;
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 14px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            cursor: pointer;
-            transition: all 0.15s;
-            text-transform: uppercase;
-        }
-
-        .confirm-btn:active {
-            background: var(--accent-dim);
-            transform: scale(0.98);
-        }
-
-        .confirm-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        /* ── SAVED TOAST ── */
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            left: 50%;
-            transform: translateX(-50%) translateY(80px);
-            background: var(--accent);
-            color: #0d1a12;
             font-family: 'IBM Plex Mono', monospace;
             font-size: 13px;
-            font-weight: 600;
-            padding: 12px 24px;
-            border-radius: 100px;
-            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            z-index: 200;
-            white-space: nowrap;
-        }
-
-        .toast.show {
-            transform: translateX(-50%) translateY(0);
-        }
-
-        /* ── TRANSCRIPT ── */
-        .transcript-box {
-            background: var(--surface2);
-            border-radius: 8px;
-            padding: 10px 12px;
-        }
-
-        .transcript-label {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 9px;
-            letter-spacing: 1px;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }
-
-        .transcript-text {
-            font-size: 12px;
-            color: var(--text-dim);
-            line-height: 1.5;
-            font-style: italic;
-        }
-
-        /* ── NEW SAMPLE BUTTON ── */
-        .new-btn {
             width: 100%;
-            padding: 14px;
+            outline: none;
+            resize: vertical;
+            transition: border-color 0.15s;
+        }
+        .edit-field textarea:focus, .edit-field input:focus { border-color: var(--accent); }
+        .edit-field textarea { min-height: 70px; }
+
+        .flags-box { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.3); border-radius: 8px; padding: 10px 12px; }
+        .flags-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 1px; color: var(--danger); text-transform: uppercase; margin-bottom: 6px; }
+        .flag-item { font-size: 12px; color: var(--danger); line-height: 1.5; }
+
+        .transcript-box { background: var(--surface2); border-radius: 8px; padding: 10px 12px; }
+        .transcript-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; }
+        .transcript-text { font-size: 12px; color: var(--text-dim); line-height: 1.5; font-style: italic; }
+
+        /* FIX 4 — re-record button */
+        .rerecord-btn {
+            width: 100%; padding: 13px;
             background: transparent;
             border: 1px solid var(--border);
             border-radius: 10px;
             color: var(--text-dim);
             font-family: 'IBM Plex Mono', monospace;
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
+            font-size: 13px; font-weight: 600;
             cursor: pointer;
             transition: all 0.15s;
+        }
+        .rerecord-btn:active { border-color: var(--record); color: var(--record); }
+
+        .confirm-btn {
+            width: 100%; padding: 16px;
+            background: var(--accent);
+            border: none; border-radius: 10px;
+            color: #0d1a12;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 14px; font-weight: 600; letter-spacing: 1px;
+            cursor: pointer; transition: all 0.15s; text-transform: uppercase;
+        }
+        .confirm-btn:active { background: var(--accent-dim); transform: scale(0.98); }
+        .confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .new-btn {
+            width: 100%; padding: 14px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-dim);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s;
             display: none;
         }
+        .new-btn.visible { display: block; }
+        .new-btn:active { border-color: var(--accent); color: var(--accent); }
 
-        .new-btn.visible {
-            display: block;
+        .toast {
+            position: fixed; bottom: 24px;
+            left: 50%; transform: translateX(-50%) translateY(80px);
+            background: var(--accent); color: #0d1a12;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px; font-weight: 600;
+            padding: 12px 24px; border-radius: 100px;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 200; white-space: nowrap;
         }
+        .toast.show { transform: translateX(-50%) translateY(0); }
 
-        .new-btn:active {
-            border-color: var(--accent);
-            color: var(--accent);
-        }
-
-        /* ── LOADING SPINNER ── */
-        .spinner {
-            width: 16px;
-            height: 16px;
-            border: 2px solid var(--border);
-            border-top-color: var(--warn);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            display: inline-block;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* ── ERROR STATE ── */
         .error-box {
-            background: rgba(248, 113, 113, 0.08);
-            border: 1px solid rgba(248, 113, 113, 0.3);
-            border-radius: 8px;
-            padding: 12px;
-            font-size: 13px;
-            color: var(--danger);
-            display: none;
+            background: rgba(248,113,113,0.08);
+            border: 1px solid rgba(248,113,113,0.3);
+            border-radius: 8px; padding: 12px;
+            font-size: 13px; color: var(--danger); display: none;
         }
-
-        .error-box.visible {
-            display: block;
-        }
+        .error-box.visible { display: block; }
     </style>
 </head>
 <body>
@@ -509,7 +257,7 @@
 
 <main>
 
-    <!-- INPUT FIELDS -->
+    <!-- SAMPLE INFO INPUTS -->
     <div class="card">
         <div class="card-label">Sample Info</div>
         <div class="input-row">
@@ -535,25 +283,19 @@
     <!-- RECORD SECTION -->
     <div class="record-card">
         <div class="record-btn" id="recordBtn" onclick="toggleRecord()">
-            <!-- Microphone icon -->
             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
                 <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
             </svg>
         </div>
-
         <div class="record-status" id="recordStatus">Tap to record</div>
-
         <div class="record-hint">
             Say: <code>description</code> → soil info → <code>blows</code> → counts → <code>recovery</code> → inches → <code>comments</code> → remarks
         </div>
-
-        <button class="stop-btn" id="stopBtn" onclick="stopRecording()">
-            ⏹ &nbsp;Stop Recording
-        </button>
+        <button class="stop-btn" id="stopBtn" onclick="stopRecording()">⏹ &nbsp;Stop Recording</button>
     </div>
 
-    <!-- ERROR BOX -->
+    <!-- ERROR -->
     <div class="error-box" id="errorBox"></div>
 
     <!-- RESULT CARD -->
@@ -563,80 +305,109 @@
             <div class="sample-id" id="sampleId">SS-1 @ 0.00m</div>
         </div>
 
+        <!-- Formatted description -->
         <div class="description-text" id="descriptionText"></div>
 
+        <!--
+            FIX 1 — Blow counts added as third field in the grid.
+            In displayResult(), data.blow_counts is joined as "12 / 17 / 19 / 23"
+            and shown in the blowCountsDisplay element below.
+
+            FIX 2 — Recovery now shows inches only (e.g. "16.0 in").
+            Previously showed "16.0\" / 406mm" which mixes units.
+            Changed in displayResult() — recovery_mm is no longer shown.
+        -->
         <div class="result-grid">
             <div class="result-field">
                 <div class="result-field-label">N-Value</div>
                 <div class="result-field-value" id="nValueDisplay">—</div>
             </div>
             <div class="result-field">
-                <div class="result-field-label">Recovery</div>
+                <div class="result-field-label">Recovery (in)</div>
+                <!-- FIX 2 — label says "in" and value shows inches only -->
                 <div class="result-field-value" id="recoveryDisplay">—</div>
+            </div>
+            <div class="result-field">
+                <div class="result-field-label">Blow Counts</div>
+                <!-- FIX 1 — new element for blow counts -->
+                <div class="result-field-value" id="blowCountsDisplay" style="font-size:12px;">—</div>
             </div>
         </div>
 
-        <div class="comments-box" id="commentsBox" style="display:none">
-            <div class="comments-label">Comments</div>
-            <div class="comments-text" id="commentsText"></div>
-        </div>
-
+        <!-- Flags -->
         <div class="flags-box" id="flagsBox" style="display:none">
             <div class="flags-label">⚠ Flags — Review Required</div>
             <div id="flagsList"></div>
         </div>
 
+        <!--
+            FIX 4 — Editable fields added below the read-only output.
+            Tech can edit description, comments, and blow counts before confirming.
+            Values in these fields are what gets sent to /confirm-sample.
+        -->
+        <div class="edit-section">
+            <div class="edit-section-label">Edit Before Saving</div>
+
+            <div class="edit-field">
+                <label>Description</label>
+                <textarea id="editDescription"></textarea>
+            </div>
+
+            <div class="edit-field">
+                <label>Comments</label>
+                <input type="text" id="editComments" placeholder="Optional">
+            </div>
+
+            <div class="edit-field">
+                <label>Blow Counts (comma separated)</label>
+                <input type="text" id="editBlowCounts" placeholder="e.g. 12, 17, 19, 23">
+            </div>
+        </div>
+
+        <!-- Transcript for reference -->
         <div class="transcript-box">
             <div class="transcript-label">Transcript</div>
             <div class="transcript-text" id="transcriptText"></div>
         </div>
+
+        <!--
+            FIX 4 — Re-record button added above Confirm.
+            Clicking this resets the result card and returns to the record state
+            without clearing depth/pen depths/sample number inputs.
+        -->
+        <button class="rerecord-btn" onclick="reRecord()">🎤 &nbsp;Re-record</button>
 
         <button class="confirm-btn" id="confirmBtn" onclick="confirmSample()">
             ✓ &nbsp;Confirm & Save
         </button>
     </div>
 
-    <!-- NEW SAMPLE BUTTON -->
-    <button class="new-btn" id="newBtn" onclick="resetForNewSample()">
-        + New Sample
-    </button>
+    <!-- NEW SAMPLE -->
+    <button class="new-btn" id="newBtn" onclick="resetForNewSample()">+ New Sample</button>
 
 </main>
 
-<!-- TOAST -->
 <div class="toast" id="toast">✓ Saved to log</div>
 
 <script>
-    // ── CONFIG ──
-    const API_BASE = window.location.origin; // uses the same server
-    
-    // ── STATE ──
+    const API_BASE = window.location.origin;
+
     let mediaRecorder = null;
     let audioChunks = [];
     let isRecording = false;
     let currentSampleData = null;
 
-    // ── TOGGLE RECORD ──
     function toggleRecord() {
-        if (isRecording) return; // use stop button to stop
+        if (isRecording) return;
         startRecording();
     }
 
-    // ── START RECORDING ──
     async function startRecording() {
-        // Validate inputs before recording
         const depth = document.getElementById('depth_ft').value;
         const penDepths = document.getElementById('pen_depths').value;
 
-        if (!depth) {
-            showError('Please enter depth before recording.');
-            return;
-        }
-        if (!penDepths) {
-            showError('Please enter pen depths before recording.');
-            return;
-        }
-
+        if (!depth) { showError('Please enter depth before recording.'); return; }
+        if (!penDepths) { showError('Please enter pen depths before recording.'); return; }
         hideError();
 
         try {
@@ -657,7 +428,6 @@
             mediaRecorder.start();
             isRecording = true;
 
-            // Update UI
             document.getElementById('recordBtn').classList.add('recording');
             document.getElementById('recordStatus').textContent = '● Recording...';
             document.getElementById('recordStatus').className = 'record-status active';
@@ -670,12 +440,10 @@
         }
     }
 
-    // ── STOP RECORDING ──
     function stopRecording() {
         if (mediaRecorder && isRecording) {
             mediaRecorder.stop();
             isRecording = false;
-
             document.getElementById('recordBtn').classList.remove('recording');
             document.getElementById('recordStatus').textContent = 'Processing...';
             document.getElementById('recordStatus').className = 'record-status processing';
@@ -683,17 +451,14 @@
         }
     }
 
-    // ── SUBMIT TO /log-sample ──
     async function submitSample(audioBlob) {
         const depth_ft = parseFloat(document.getElementById('depth_ft').value);
         const sample_no = parseInt(document.getElementById('sample_no').value);
         const penRaw = document.getElementById('pen_depths').value;
-
-        // Parse pen depths
         const pen_depths = penRaw.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
 
         if (pen_depths.length === 0) {
-            showError('Invalid pen depths. Enter comma-separated numbers e.g. 6, 6, 6, 6');
+            showError('Invalid pen depths.');
             resetStatus();
             return;
         }
@@ -712,10 +477,7 @@
                 body: formData
             });
 
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(JSON.stringify(err));
-            }
+            if (!response.ok) throw new Error(await response.text());
 
             const data = await response.json();
             currentSampleData = data;
@@ -727,66 +489,68 @@
         }
     }
 
-    // ── DISPLAY RESULT ──
     function displayResult(data) {
         // Sample ID
         document.getElementById('sampleId').textContent =
             `SS-${data.sample_no} @ ${data.depth_m}m`;
 
         // Description
-        document.getElementById('descriptionText').textContent =
-            data.description || '—';
+        document.getElementById('descriptionText').textContent = data.description || '—';
 
         // N-value
-        document.getElementById('nValueDisplay').textContent =
-            data.n_value_log || '—';
+        document.getElementById('nValueDisplay').textContent = data.n_value_log || '—';
 
-        // Recovery
-        if (data.recovery_inches) {
-            document.getElementById('recoveryDisplay').textContent =
-                `${data.recovery_inches}" / ${data.recovery_mm}mm`;
-        } else {
-            document.getElementById('recoveryDisplay').textContent = '—';
-        }
+        // FIX 2 — Recovery: inches only, no mm conversion shown
+        document.getElementById('recoveryDisplay').textContent =
+            data.recovery_inches ? `${data.recovery_inches}"` : '—';
 
-        // Comments
-        if (data.comments) {
-            document.getElementById('commentsText').textContent = data.comments;
-            document.getElementById('commentsBox').style.display = 'block';
-        } else {
-            document.getElementById('commentsBox').style.display = 'none';
-        }
+        // FIX 1 — Blow counts: join as "12 / 17 / 19 / 23"
+        document.getElementById('blowCountsDisplay').textContent =
+            data.blow_counts && data.blow_counts.length > 0
+                ? data.blow_counts.join(' / ')
+                : '—';
 
         // Flags
         if (data.flags && data.flags.length > 0) {
-            const flagsList = document.getElementById('flagsList');
-            flagsList.innerHTML = data.flags.map(f =>
-                `<div class="flag-item">• ${f}</div>`
-            ).join('');
+            document.getElementById('flagsList').innerHTML =
+                data.flags.map(f => `<div class="flag-item">• ${f}</div>`).join('');
             document.getElementById('flagsBox').style.display = 'block';
         } else {
             document.getElementById('flagsBox').style.display = 'none';
         }
 
-        // Transcript
-        document.getElementById('transcriptText').textContent =
-            data.raw_transcript || '';
+        // FIX 4 — Pre-fill editable fields with pipeline output
+        // Tech can correct any field before confirming
+        document.getElementById('editDescription').value = data.description || '';
+        document.getElementById('editComments').value = data.comments || '';
+        document.getElementById('editBlowCounts').value =
+            data.blow_counts ? data.blow_counts.join(', ') : '';
 
-        // Show result card
+        // Transcript
+        document.getElementById('transcriptText').textContent = data.raw_transcript || '';
+
+        // Show result
         document.getElementById('resultCard').classList.add('visible');
         document.getElementById('newBtn').classList.remove('visible');
+        document.getElementById('confirmBtn').disabled = false;
+        document.getElementById('confirmBtn').textContent = '✓  Confirm & Save';
 
-        // Reset status
-        document.getElementById('recordStatus').textContent = 'Tap to record';
-        document.getElementById('recordStatus').className = 'record-status';
-
-        // Scroll to result
+        resetStatus();
         document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    // ── CONFIRM & SAVE ──
     async function confirmSample() {
         if (!currentSampleData) return;
+
+        // FIX 4 — Read edited values from edit fields before saving
+        // This means the tech's manual corrections are what gets saved, not the raw pipeline output
+        const editedData = {
+            ...currentSampleData,
+            description: document.getElementById('editDescription').value,
+            comments: document.getElementById('editComments').value || null,
+            blow_counts: document.getElementById('editBlowCounts').value
+                .split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v))
+        };
 
         const btn = document.getElementById('confirmBtn');
         btn.disabled = true;
@@ -794,7 +558,7 @@
 
         try {
             const formData = new FormData();
-            formData.append('sample_data', JSON.stringify(currentSampleData));
+            formData.append('sample_data', JSON.stringify(editedData));
 
             const response = await fetch(`${API_BASE}/confirm-sample`, {
                 method: 'POST',
@@ -804,11 +568,7 @@
             if (!response.ok) throw new Error('Save failed');
 
             const result = await response.json();
-
-            // Show toast
             showToast(`✓ Saved — ID ${result.id}`);
-
-            // Update UI
             btn.textContent = '✓ Saved';
             document.getElementById('newBtn').classList.add('visible');
 
@@ -819,11 +579,20 @@
         } catch (err) {
             showError('Save failed — check connection.');
             btn.disabled = false;
-            btn.textContent = '✓ Confirm & Save';
+            btn.textContent = '✓  Confirm & Save';
         }
     }
 
-    // ── RESET FOR NEW SAMPLE ──
+    // FIX 4 — Re-record: hides result, keeps depth/pen depths/sample no intact
+    function reRecord() {
+        currentSampleData = null;
+        document.getElementById('resultCard').classList.remove('visible');
+        document.getElementById('newBtn').classList.remove('visible');
+        hideError();
+        resetStatus();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
     function resetForNewSample() {
         currentSampleData = null;
         document.getElementById('resultCard').classList.remove('visible');
@@ -833,19 +602,17 @@
         document.getElementById('depth_ft').value = '';
         document.getElementById('pen_depths').value = '';
         hideError();
+        resetStatus();
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    // ── HELPERS ──
     function showError(msg) {
         const box = document.getElementById('errorBox');
         box.textContent = msg;
         box.classList.add('visible');
     }
 
-    function hideError() {
-        document.getElementById('errorBox').classList.remove('visible');
-    }
+    function hideError() { document.getElementById('errorBox').classList.remove('visible'); }
 
     function resetStatus() {
         document.getElementById('recordStatus').textContent = 'Tap to record';
