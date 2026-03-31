@@ -124,6 +124,7 @@ def parse_blow_counts_from_string(blows_string: str) -> list:
     Strips punctuation before splitting — Whisper sometimes adds
     punctuation after the last number e.g. "14, 24, 16, and 14."
     Pen depths are handled separately via tap UI — not parsed here.
+    Pipeline requires len(parsed blow counts) == len(pen_depths) before N-value math.
     """
     if not blows_string:
         return []

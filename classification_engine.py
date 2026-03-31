@@ -143,7 +143,8 @@ def parse_blow_counts(blow_counts: list, pen_depths: list) -> dict:
     
     Inputs:
     - blow_counts: list of 1–4 integers (one per completed interval)
-    - pen_depths:  list of penetration depths in inches (6 = full interval)
+    - pen_depths:  list of penetration depths in inches (6 = full interval);
+      must have the same length as blow_counts (enforced in pipeline.py)
     
     Returns dict: {
         "n_value":     int  — used for consistency classification,

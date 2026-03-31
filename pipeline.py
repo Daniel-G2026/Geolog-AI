@@ -179,6 +179,7 @@ def combination(transcript: str, blow_counts: list, pen_depths: list,
     2.  extract_description_fields()   — Claude extracts soil fields from description segment
     3.  Early exit if no soil name found
     4.  parse_blow_counts_from_string() — parse blows string if blow_counts not provided
+    4b. Early exit if len(pen_depths) ≠ len(blow_counts)
     5.  parse_blow_counts()            — calculate N-value and log notation
     6.  get_consistency_density()      — classify consistency/density from N-value
     7.  parse_recovery()               — extract recovery in inches, convert to mm
@@ -224,6 +225,26 @@ def combination(transcript: str, blow_counts: list, pen_depths: list,
     # Step 4 — parse blow counts from transcript if not provided via tap UI
     if not blow_counts:
         blow_counts = parse_blow_counts_from_string(segments.get("blows", ""))
+
+    # Step 4b — each blow count interval needs one penetration depth (inches)
+    if len(pen_depths) != len(blow_counts):
+        return SampleEntry(
+            depth_ft=depth_ft,
+            depth_m=depth_m,
+            sample_type=sample_type,
+            sample_no=sample_no,
+            blow_counts=blow_counts,
+            pen_depths=pen_depths,
+            n_value=0,
+            n_value_log="",
+            refusal=False,
+            raw_transcript=transcript,
+            flags=[
+                "Number of pen depths must match number of blow counts "
+                f"({len(pen_depths)} depths vs {len(blow_counts)} blows) — "
+                "enter one penetration depth per blow interval."
+            ],
+        )
 
     # Step 5 — calculate N-value and log notation
     blow_count_data = parse_blow_counts(blow_counts, pen_depths)
