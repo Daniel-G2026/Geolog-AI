@@ -129,7 +129,12 @@ def parse_blow_counts_from_string(blows_string: str) -> tuple:
         return ([], [])
 
     # Normalize "50 for 3" and "50 for 3 inches" → "50/3"
-    normalized = re.sub(r'(\d+)\s+for\s+(\d+\.?\d*)(?:\s+inches?)?(?=\s|$)', r'\1/\2', blows_string)
+    # Allow comma or period after the inch value (Whisper often writes "50 for 3, 23").
+    normalized = re.sub(
+        r'(\d+)\s+for\s+(\d+\.?\d*)(?:\s+inches?)?(?=\s*[,.]|\s|$)',
+        r'\1/\2',
+        blows_string,
+    )
 
     # Remove other punctuation except / which we need
     normalized = re.sub(r'[.,?;]', ' ', normalized)
