@@ -35,7 +35,6 @@ def health():
 @app.post("/log-sample")
 async def log_sample(
     audio: UploadFile = File(...),
-    pen_depths: str = Form(...),
     sample_no: int = Form(...),
     depth_ft: float = Form(...)
 ):
@@ -44,21 +43,18 @@ async def log_sample(
     with open(temp_path, "wb") as f:
         f.write(await audio.read())
 
-    # 2. Parse pen_depths from JSON string to list
-    pen_depths_list = json.loads(pen_depths)
 
-    # 3. Run full pipeline
+    # 2. Run full pipeline
     result = run_from_voice(
         audio_file_path=temp_path,
-        pen_depths=pen_depths_list,
         sample_no=sample_no,
         depth_ft=depth_ft
     )
 
-    # 4. Clean up temp file
+    # 3. Clean up temp file
     os.remove(temp_path)
 
-    # 5. Return SampleEntry as JSON
+    # 4. Return SampleEntry as JSON
     return asdict(result)
 @app.post("/confirm-sample")
 async def confirm_sample(sample_data: str = Form(...)):

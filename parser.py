@@ -113,38 +113,54 @@ def segment_transcript(transcript: str) -> dict:
 # BLOW COUNT PARSER
 # ─────────────────────────────────────────────
 
-def parse_blow_counts_from_string(blows_string: str) -> list:
+def parse_blow_counts_from_string(blows_string: str) -> tuple:
     """
-    Converts the blows segment string into a list of integers.
-
-    Input:  "12 17 19 23"  or  "12, 17, 19, 23."
-    Output: [12, 17, 19, 23]
-
-    Handles 1-4 numbers. Returns empty list if no valid numbers found.
-    Strips punctuation before splitting — Whisper sometimes adds
-    punctuation after the last number e.g. "14, 24, 16, and 14."
-    Pen depths are handled separately via tap UI — not parsed here.
-    Pipeline requires len(parsed blow counts) == len(pen_depths) before N-value math.
+    Converts the blows segment string into (blow_counts, pen_depths).
+    
+    Detects refusal notation "50 for 3" or "50/3" and extracts pen depth.
+    Normal intervals default to 6 inches penetration.
+    
+    Input:  "12 17 19 23"         → ([12, 17, 19, 23], [6, 6, 6, 6])
+    Input:  "12 17 50 for 3 23"   → ([12, 17, 50, 23], [6, 6, 3, 6])
+    Input:  "50/3"                → ([50], [3])
+    Input:  ""                    → ([], [])
     """
     if not blows_string:
-        return []
+        return ([], [])
 
-    # Replace punctuation with spaces before splitting
-    raw = re.sub(r"[.,?;]", " ", blows_string).split()
+    # Normalize "50 for 3" and "50 for 3 inches" → "50/3"
+    normalized = re.sub(r'(\d+)\s+for\s+(\d+\.?\d*)(?:\s+inches?)?(?=\s|$)', r'\1/\2', blows_string)
 
-    counts = []
-    for item in raw:
-        try:
-            counts.append(int(item))
-        except ValueError:
-            continue  # skip non-numeric words e.g. "and" between numbers
+    # Remove other punctuation except / which we need
+    normalized = re.sub(r'[.,?;]', ' ', normalized)
 
-    # Validate 1-4 counts — SPT drive has max 4 intervals
-    if len(counts) == 0 or len(counts) > 4:
-        return []
+    tokens = normalized.split()
+    blow_counts = []
+    pen_depths = []
 
-    return counts
+    for token in tokens:
+        if '/' in token:
+            # Refusal format — "50/3" means 50 blows for 3 inches
+            parts = token.split('/')
+            try:
+                blow = int(parts[0])
+                depth = float(parts[1])
+                blow_counts.append(blow)
+                pen_depths.append(depth)
+            except (ValueError, IndexError):
+                continue
+        else:
+            try:
+                blow = int(token)
+                blow_counts.append(blow)
+                pen_depths.append(6.0)  # default full interval
+            except ValueError:
+                continue  # skip words like "and"
 
+    if len(blow_counts) == 0 or len(blow_counts) > 4:
+        return ([], [])
+
+    return (blow_counts, pen_depths)
 
 # ─────────────────────────────────────────────
 # RECOVERY PARSER

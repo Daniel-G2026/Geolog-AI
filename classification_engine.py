@@ -154,11 +154,25 @@ def parse_blow_counts(blow_counts: list, pen_depths: list) -> dict:
     """
 
     if len(blow_counts) == 4:
-        # ── NORMAL CASE — full drive, no refusal ──
-        # N-value = interval 2 + interval 3 (index 1 and 2)
         n_value = blow_counts[1] + blow_counts[2]
-        n_value_log = str(n_value)       # plain number in log e.g. "18"
-        refusal = False
+        
+        # Check if any interval hit refusal (pen_depth < 6 inches)
+        refusal_interval = None
+        for i, depth in enumerate(pen_depths):
+            if depth < 6.0:
+                refusal_interval = i
+                break
+    
+        if refusal_interval is not None:
+            # Refusal mid-drive — log notation uses the refusal interval's count
+            # and combined pen depth of intervals 2 and 3 (indices 1 and 2)
+            combined_pen_mm = round((pen_depths[1] + pen_depths[2]) * 25.4)
+            n_value_log = f"{n_value}/{combined_pen_mm}mm"
+            refusal = True
+        else:
+            # Normal full drive
+            n_value_log = str(n_value)
+            refusal = False
 
     elif len(blow_counts) == 1:
         # ── REFUSAL ON INTERVAL 1 ──

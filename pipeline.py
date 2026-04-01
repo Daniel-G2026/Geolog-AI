@@ -63,6 +63,7 @@ Return only the formatted description string. No explanation, no extra text."""
 # that rigid substring matching cannot handle.
 # ─────────────────────────────────────────────
 
+
 EXTRACTION_PROMPT = """You are a geotechnical data extraction assistant.
 Extract structured fields from a field technician's soil description.
 Return ONLY a valid JSON object with these exact keys. No explanation, no markdown, no extra text.
@@ -170,7 +171,7 @@ def sort_components(components: list) -> list:
 # MAIN PIPELINE FUNCTION
 # ─────────────────────────────────────────────
 
-def combination(transcript: str, blow_counts: list, pen_depths: list,
+def combination(transcript: str, blow_counts: list,
                 sample_no: int, depth_ft: float, sample_type: str = "SS") -> SampleEntry:
     """
     Main pipeline function. Returns a complete SampleEntry object.
@@ -215,7 +216,7 @@ def combination(transcript: str, blow_counts: list, pen_depths: list,
             sample_type=sample_type,
             sample_no=sample_no,
             blow_counts=blow_counts,
-            pen_depths=pen_depths,
+            pen_depths=[],
             n_value=0,
             n_value_log="",
             refusal=False,
@@ -225,7 +226,9 @@ def combination(transcript: str, blow_counts: list, pen_depths: list,
 
     # Step 4 — parse blow counts from transcript if not provided via tap UI
     if not blow_counts:
-        blow_counts = parse_blow_counts_from_string(segments.get("blows", ""))
+        blow_counts, pen_depths = parse_blow_counts_from_string(segments.get("blows", ""))
+    else:
+        pen_depths = [6.0] * len(blow_counts)
 
     # Step 4b — each blow count interval needs one penetration depth (inches)
     if len(pen_depths) != len(blow_counts):
@@ -334,7 +337,7 @@ def combination(transcript: str, blow_counts: list, pen_depths: list,
 # VOICE ENTRY POINT
 # ─────────────────────────────────────────────
 
-def run_from_voice(audio_file_path: str, pen_depths: list,
+def run_from_voice(audio_file_path: str,
                    sample_no: int, depth_ft: float,
                    sample_type: str = "SS") -> SampleEntry:
     """
@@ -348,7 +351,6 @@ def run_from_voice(audio_file_path: str, pen_depths: list,
     return combination(
         transcript=transcript,
         blow_counts=[],      # always empty — extracted from transcript
-        pen_depths=pen_depths,
         sample_no=sample_no,
         depth_ft=depth_ft,
         sample_type=sample_type
