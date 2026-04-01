@@ -250,6 +250,40 @@ def combination(transcript: str, blow_counts: list,
             ],
         )
 
+    # Step 4c — no blows parsed (e.g. missing "blows" segment or non-numeric speech)
+    if not blow_counts:
+        return SampleEntry(
+            depth_ft=depth_ft,
+            depth_m=depth_m,
+            sample_type=sample_type,
+            sample_no=sample_no,
+            blow_counts=[],
+            pen_depths=[],
+            n_value=0,
+            n_value_log="",
+            refusal=False,
+            raw_transcript=transcript,
+            flags=["SPT blow counts not found in transcript — manual input required"],
+        )
+
+    if len(blow_counts) not in (1, 2, 3, 4):
+        return SampleEntry(
+            depth_ft=depth_ft,
+            depth_m=depth_m,
+            sample_type=sample_type,
+            sample_no=sample_no,
+            blow_counts=blow_counts,
+            pen_depths=pen_depths,
+            n_value=0,
+            n_value_log="",
+            refusal=False,
+            raw_transcript=transcript,
+            flags=[
+                "Invalid SPT blow count intervals "
+                f"({len(blow_counts)} — expected 1–4) — manual review required"
+            ],
+        )
+
     # Step 5 — calculate N-value and log notation
     blow_count_data = parse_blow_counts(blow_counts, pen_depths)
 

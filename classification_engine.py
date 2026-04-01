@@ -190,7 +190,7 @@ def parse_blow_counts(blow_counts: list, pen_depths: list) -> dict:
         n_value_log = f"{blow_counts[1]}/{pen_depth}mm"   # e.g. "50/51mm"
         refusal = True
 
-    else:
+    elif len(blow_counts) == 3:
         # ── REFUSAL ON INTERVAL 3 (3 blow counts received) ──
         # Completed intervals 1 and 2, hit 50 on interval 3
         # N-value = interval 2 + interval 3
@@ -199,6 +199,12 @@ def parse_blow_counts(blow_counts: list, pen_depths: list) -> dict:
         pen_depth = round((pen_depths[1] + pen_depths[2]) * 25.4)
         n_value_log = f"{n_value}/{pen_depth}mm"          # e.g. "62/254mm"
         refusal = True
+
+    else:
+        # Unexpected length — pipeline should reject before calling; fail safe for API stability
+        n_value = 0
+        n_value_log = ""
+        refusal = False
 
     return {
         "n_value": n_value,
