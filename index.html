@@ -284,7 +284,7 @@
         </div>
         <div class="record-status" id="recordStatus">Tap to record</div>
         <div class="record-hint">
-            Say: <code>description</code> → soil info → <code>blows</code> → counts → <code>recovery</code> → inches → <code>comments</code> → remarks
+            Say: <code>description</code> → soil → <code>blows</code> → counts (use <code>50 for 3</code> for refusal) → <code>recovery</code> → inches → <code>comments</code>
         </div>
         <button class="stop-btn" id="stopBtn" onclick="stopRecording()">⏹ &nbsp;Stop Recording</button>
     </div>
@@ -448,18 +448,8 @@
     async function submitSample(audioBlob) {
         const depth_ft = parseFloat(document.getElementById('depth_ft').value);
         const sample_no = parseInt(document.getElementById('sample_no').value);
-        const penRaw = document.getElementById('pen_depths').value;
-        const pen_depths = penRaw.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
-
-        if (pen_depths.length === 0) {
-            showError('Invalid pen depths.');
-            resetStatus();
-            return;
-        }
-
         const formData = new FormData();
         formData.append('audio', audioBlob, 'recording.webm');
-        formData.append('pen_depths', JSON.stringify(pen_depths));
         formData.append('sample_no', sample_no);
         formData.append('depth_ft', depth_ft);
 
@@ -594,7 +584,6 @@
         document.getElementById('confirmBtn').disabled = false;
         document.getElementById('confirmBtn').textContent = '✓  Confirm & Save';
         document.getElementById('depth_ft').value = '';
-        document.getElementById('pen_depths').value = '';
         hideError();
         resetStatus();
         window.scrollTo({ top: 0, behavior: 'smooth' });
