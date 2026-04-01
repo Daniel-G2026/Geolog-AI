@@ -398,10 +398,8 @@
 
     async function startRecording() {
         const depth = document.getElementById('depth_ft').value;
-        const penDepths = document.getElementById('pen_depths').value;
 
         if (!depth) { showError('Please enter depth before recording.'); return; }
-        if (!penDepths) { showError('Please enter pen depths before recording.'); return; }
         hideError();
 
         try {
