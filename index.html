@@ -489,8 +489,10 @@
         // FIX 1 — Blow counts: join as "12 / 17 / 19 / 23"
         document.getElementById('blowCountsDisplay').textContent =
             data.blow_counts && data.blow_counts.length > 0
-                ? data.blow_counts.join(' / ')
-                : '—';
+        ? data.blow_counts.map((blow, i) =>
+            data.pen_depths[i] < 6 ? `${blow}/${data.pen_depths[i]}` : `${blow}`
+          ).join(' , ')
+        : '—';
 
         // Flags
         if (data.flags && data.flags.length > 0) {
@@ -506,7 +508,11 @@
         document.getElementById('editDescription').value = data.description || '';
         document.getElementById('editComments').value = data.comments || '';
         document.getElementById('editBlowCounts').value =
-            data.blow_counts ? data.blow_counts.join(', ') : '';
+            data.blow_counts
+        ? data.blow_counts.map((blow, i) =>
+            data.pen_depths[i] < 6 ? `${blow}/${data.pen_depths[i]}` : `${blow}`
+          ).join(', ')
+        : '';
 
         // Transcript
         document.getElementById('transcriptText').textContent = data.raw_transcript || '';
@@ -522,17 +528,33 @@
     }
 
     async function confirmSample() {
-        if (!currentSampleData) return;
+         if (!currentSampleData) return;
 
-        // FIX 4 — Read edited values from edit fields before saving
-        // This means the tech's manual corrections are what gets saved, not the raw pipeline output
-        const editedData = {
-            ...currentSampleData,
-            description: document.getElementById('editDescription').value,
-            comments: document.getElementById('editComments').value || null,
-            blow_counts: document.getElementById('editBlowCounts').value
-                .split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v))
-        };
+    // Parse edited blow counts — handles both "25" and "50/3" notation
+    const rawBlows = document.getElementById('editBlowCounts').value
+        .split(',').map(v => v.trim()).filter(v => v.length > 0);
+
+    const parsedBlowCounts = [];
+    const parsedPenDepths = [];
+
+    rawBlows.forEach(token => {
+        if (token.includes('/')) {
+            const parts = token.split('/');
+            parsedBlowCounts.push(parseInt(parts[0]));
+            parsedPenDepths.push(parseFloat(parts[1]));
+        } else {
+            parsedBlowCounts.push(parseInt(token));
+            parsedPenDepths.push(6.0);
+        }
+    });
+
+    const editedData = {
+        ...currentSampleData,
+        description: document.getElementById('editDescription').value,
+        comments: document.getElementById('editComments').value || null,
+        blow_counts: parsedBlowCounts,
+        pen_depths: parsedPenDepths
+    };
 
         const btn = document.getElementById('confirmBtn');
         btn.disabled = true;
