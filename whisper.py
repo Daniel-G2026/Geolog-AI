@@ -34,6 +34,8 @@ WHISPER_PROMPT = (
     "silty clay till, sandy silt till, sand and silt till, silty sand till"
     "blow counts, blows, recovery, description, comments, wet spoon"
     "auger grinding"
+    "All numbers should not be spelled and should be transcribed as numbers e.g fifty for four should be 50 for 4 etc"
+    
 )
 
 
