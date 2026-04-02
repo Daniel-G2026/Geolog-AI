@@ -263,11 +263,12 @@ def combination(transcript: str, blow_counts: list,
     else:
         soil_name_flag = ""
     # Step 7 — parse recovery in inches and convert to mm
-    recovery_inches, recovery_flag = parse_recovery(segments.get("recovery", ""))
+    recovery_inches, remainder_string,recovery_flag = parse_recovery(segments.get("recovery", ""))
     recovery_mm = round(recovery_inches * 25.4) if recovery_inches else None
 
     # Step 8 — sort components most to least significant
     fields["components"] = sort_components(fields.get("components", []))
+    
 
     # Step 9 — assemble complete soil_data for Claude formatting
     soil_data = {
@@ -294,6 +295,8 @@ def combination(transcript: str, blow_counts: list,
     # Recovery cannot exceed total inches driven. When it does, flag for manual review.
     # Recovery below total penetration: no comment or flag changes (voice comments unchanged).
     comments = segments.get("comments")
+    if not comments:
+        comments = remainder_string
     total_penetration = sum(pen_depths)
     recovery_vs_pen_flags = []
     if recovery_inches is not None:
@@ -337,7 +340,7 @@ def combination(transcript: str, blow_counts: list,
         flags=flags,
         comments=comments
     )
-print(combination("okay the description is sandy silt and silty clay, trace clay, brown moist, the blow counts are 25, 50 for 3, 30, and 48. The recovery is 20 inches and no comments",[],10,5.0,"SS"))
+
 # ─────────────────────────────────────────────
 # VOICE ENTRY POINT
 # ─────────────────────────────────────────────

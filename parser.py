@@ -81,8 +81,9 @@ def segment_transcript(transcript: str) -> dict:
     for synonym_group in KEYWORD_SYNONYMS:
         for synonym in sorted(synonym_group.keys(), key=len, reverse=True):
             standard = synonym_group[synonym]
-            if synonym in text:
-                text = text.replace(synonym, standard)
+            pattern = rf"\b{re.escape(synonym)}\b"
+            if re.search(pattern,text):
+                text = re.sub(pattern, standard, text, flags=re.IGNORECASE)
                 standard_keywords.append(standard)
                 break  # only replace one synonym per group
 
@@ -187,6 +188,7 @@ def parse_recovery(recovery_string: str) -> tuple:
         return (None, "Recovery not found - manual input required")
 
     num_string = ""
+    remainder = ""
     for i, char in enumerate(recovery_string):
         if char.isdigit():
             num_string += char
@@ -194,13 +196,18 @@ def parse_recovery(recovery_string: str) -> tuple:
               and i + 1 < len(recovery_string)
               and recovery_string[i + 1].isdigit()):
             num_string += char
-        elif char == " " and num_string:
-            break  # stop at first space after digits
+        else:
+            if num_string:
+                remainder = recovery_string[i:]
+                break
+            
+    remainder = remainder.replace("inches","").replace("inch","")
+    remainder = remainder.strip(" ,.")
 
     if not num_string:
-        return (None, "Recovery not found - manual input required")
+        return (None, remainder, "Recovery not found - manual input required")
 
     try:
-        return (float(num_string), None)
+        return (float(num_string),remainder, None)
     except ValueError:
-        return (None, "Recovery not found - manual input required")
+        return (None, remainder,"Recovery not found - manual input required")
