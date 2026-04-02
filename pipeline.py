@@ -48,9 +48,7 @@ RULES:
    as a separate capitalized header. Do NOT add a colon after the soil type.
 8. Transitional soils: use TO between names
 9. End every description with a period
-10. If split_layer is true: return exactly "MANUAL REVIEW REQUIRED" on the
-    first line, then list each soil name from soil_name array as a separate
-    entry with its shared properties. Format: "- [SOIL NAME]: color, moisture, consistency."
+10. If split_layer is true: return each soil name from the list following the soil name format in rule 1, seperating them with a / then continue to describe the rest of the characteristicsFormat: "- [SOIL NAME/SOIL NAME]: color, moisture, consistency." if only one soil name then no need for the  /
 
 Return only the formatted description string. No explanation, no extra text."""
 
@@ -68,6 +66,7 @@ EXTRACTION_PROMPT = """You are a geotechnical data extraction assistant.
 Extract structured fields from a field technician's soil description.
 Return ONLY a valid JSON object with these exact keys. No explanation, no markdown, no extra text.
 
+The following are the ONLY valid primary soil names: ["silty clay", "clayey silt", "silt", "clay", "silty sand", "sandy silt", "sand and gravel", "sand"]. Any soil that matches one of these is a primary soil name, not a component.
 Fields to extract:
 - soil_name: primary soil classification (e.g. "silty clay till", "sandy silt")
 - components: list of secondary soils with quantifiers (e.g. ["trace gravel", "some sand", "trace to some clay"])
@@ -78,10 +77,11 @@ Fields to extract:
 
 Rules:
 - soil_name must NOT include trace/some quantifiers
+    if multiple valid soil names are detected, return soil_name as a list of strings — if only one, return it as a single string
 - components are secondary soils preceded by trace/some/trace to some
 - inclusions: standard geological terms (rock fragments, oxidation) go in as-is.
   Organic matter of any kind (roots, branches, organics, rootlets) → "organic inclusions"
-  Unusual foreign objects (coin, brick fragment, glass, metal debris) → include exactly as found
+  Unusual foreign objects (coin, brick fragment, glass, metal debris) → include exactly as found as "foreign object" e.g "glass"
 - Use null for missing strings
 - Use empty list [] for missing lists
 - fill is always true or false, never null
@@ -209,6 +209,7 @@ def combination(transcript: str, blow_counts: list,
 
     # Step 3 — early exit if no soil name found
     depth_m = round(depth_ft * 0.3048, 2)
+    pen_depths = []
     if not fields.get("soil_name"):
         return SampleEntry(
             depth_ft=depth_ft,
@@ -216,7 +217,7 @@ def combination(transcript: str, blow_counts: list,
             sample_type=sample_type,
             sample_no=sample_no,
             blow_counts=blow_counts,
-            pen_depths=[],
+            pen_depths=pen_depths,
             n_value=0,
             n_value_log="",
             refusal=False,
@@ -250,47 +251,17 @@ def combination(transcript: str, blow_counts: list,
             ],
         )
 
-    # Step 4c — no blows parsed (e.g. missing "blows" segment or non-numeric speech)
-    if not blow_counts:
-        return SampleEntry(
-            depth_ft=depth_ft,
-            depth_m=depth_m,
-            sample_type=sample_type,
-            sample_no=sample_no,
-            blow_counts=[],
-            pen_depths=[],
-            n_value=0,
-            n_value_log="",
-            refusal=False,
-            raw_transcript=transcript,
-            flags=["SPT blow counts not found in transcript — manual input required"],
-        )
-
-    if len(blow_counts) not in (1, 2, 3, 4):
-        return SampleEntry(
-            depth_ft=depth_ft,
-            depth_m=depth_m,
-            sample_type=sample_type,
-            sample_no=sample_no,
-            blow_counts=blow_counts,
-            pen_depths=pen_depths,
-            n_value=0,
-            n_value_log="",
-            refusal=False,
-            raw_transcript=transcript,
-            flags=[
-                "Invalid SPT blow count intervals "
-                f"({len(blow_counts)} — expected 1–4) — manual review required"
-            ],
-        )
-
     # Step 5 — calculate N-value and log notation
     blow_count_data = parse_blow_counts(blow_counts, pen_depths)
 
     # Step 6 — classify consistency/density from N-value
     # Python does this — Claude never determines this term
-    consistency = get_consistency_density(fields["soil_name"], blow_count_data["n_value"])
 
+    consistency = get_consistency_density(fields["soil_name"], blow_count_data["n_value"])
+    if isinstance(fields["soil_name"],list) and len(fields["soil_name"]) > 1:
+        soil_name_flag = "Multiple soil names detected - Manual review required"
+    else:
+        soil_name_flag = ""
     # Step 7 — parse recovery in inches and convert to mm
     recovery_inches, recovery_flag = parse_recovery(segments.get("recovery", ""))
     recovery_mm = round(recovery_inches * 25.4) if recovery_inches else None
@@ -346,7 +317,8 @@ def combination(transcript: str, blow_counts: list,
         flags.append(recovery_flag)
     if fields.get("parse_error"):
         flags.append(fields["parse_error"])
-
+    if soil_name_flag:
+        flags.append(soil_name_flag)
     # Step 12 — return complete SampleEntry object
     return SampleEntry(
         depth_ft=depth_ft,
@@ -365,8 +337,7 @@ def combination(transcript: str, blow_counts: list,
         flags=flags,
         comments=comments
     )
-
-
+print(combination("okay the description is sandy silt and silty clay, trace clay, brown moist, the blow counts are 25, 50 for 3, 30, and 48. The recovery is 20 inches and no comments",[],10,5.0,"SS"))
 # ─────────────────────────────────────────────
 # VOICE ENTRY POINT
 # ─────────────────────────────────────────────
