@@ -295,8 +295,9 @@ def combination(transcript: str, blow_counts: list,
     # Recovery cannot exceed total inches driven. When it does, flag for manual review.
     # Recovery below total penetration: no comment or flag changes (voice comments unchanged).
     comments = segments.get("comments")
+    comments.strip(" ,.")
     if not comments:
-        comments = remainder_string
+        comments = remainder_string.strip(" ,.")
     total_penetration = sum(pen_depths)
     recovery_vs_pen_flags = []
     if recovery_inches is not None:
