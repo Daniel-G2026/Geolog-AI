@@ -29,7 +29,9 @@ KEYWORD_SYNONYMS = [
         "blow counts": "blows",
         "blowcounts": "blows",
         "blow count": "blows",
-        "counts": "blows"
+        "counts": "blows",
+        "blow counter": "blows",
+        "blowcount" : "blows"
     },
     {
         "recovery": "recovery",

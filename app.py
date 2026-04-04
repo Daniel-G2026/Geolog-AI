@@ -8,6 +8,7 @@ from dataclasses import asdict
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pipeline import run_from_voice
+from classification_engine import parse_blow_counts
 from supabase import create_client
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -60,36 +61,49 @@ def health():
 
 @app.post("/projects")
 async def create_project(data:ProjectCreate):
-    project_id = str(uuid4())
+    try:
+        # Check for duplicate project_no
+        existing = supabase_client.table("projects") \
+            .select("id") \
+            .eq("project_no", data.project_no) \
+            .limit(1) \
+            .execute()
+        if existing.data:
+            return {"saved": False, "error": f"Project number '{data.project_no}' already exists."}
 
-    dict_data = data.model_dump()
-    dict_data["id"] = project_id
+        dict_data = data.model_dump()
+        result = supabase_client.table("projects").insert(dict_data).execute()
+        if not result.data:
+            return {"saved": False, "error": "Insert failed"}
 
-    result = supabase_client.table("projects").insert(dict_data).execute()
-    if not result.data:
-        return {"saved": False, "error": "Insert failed"}
-
-    return {"saved": True, "project_id": project_id}
+        project_id = result.data[0]["id"]
+        return {"saved": True, "project_id": project_id}
+    except Exception as e:
+        return {"saved": False, "error": str(e)}
 
 @app.post("/projects/{project_id}/boreholes")
 async def create_borehole(project_id:str,data:BoreholeCreate):
-    project = supabase_client.table("projects") \
-        .select("id") \
-        .eq("id",project_id) \
-        .limit(1) \
-        .execute()
-    if not project.data:
-        return {"error": "Project not found"}
-    borehole_id =str(uuid4())
-    
-    dict_data = data.model_dump()
-    dict_data["id"] = borehole_id
-    dict_data["project_id"] = project_id
-    result = supabase_client.table("boreholes").insert(dict_data).execute()
-    if not result.data:
-        return {"saved": False, "error": "Insert failed"}
-    
-    return {"saved":True, "project_id":project_id, "borehole_id":borehole_id}
+    try:
+        project = supabase_client.table("projects") \
+            .select("id, project_no") \
+            .eq("id",project_id) \
+            .limit(1) \
+            .execute()
+        if not project.data:
+            return {"saved": False, "error": "Project not found"}
+        project_no = project.data[0]["project_no"]
+
+        dict_data = data.model_dump()
+        dict_data["project_id"] = project_id
+        dict_data["project_no"] = project_no
+        result = supabase_client.table("boreholes").insert(dict_data).execute()
+        if not result.data:
+            return {"saved": False, "error": "Insert failed"}
+
+        borehole_id = result.data[0]["id"]
+        return {"saved":True, "project_id":project_id, "borehole_id":borehole_id}
+    except Exception as e:
+        return {"saved": False, "error": str(e)}
 
 # ── Main logging endpoint ──
 @app.post("/projects/{project_id}/boreholes/{borehole_id}/samples/draft")
@@ -109,55 +123,95 @@ async def log_sample(
     
     if not borehole.data:
         return {"error":"Borehole not found"}
-    
-    # 1. Save audio to temp file
+
     temp_path = f"temp_{audio.filename}"
-    with open(temp_path, "wb") as f:
-        f.write(await audio.read())
+    try:
+        # 1. Save audio to temp file
+        with open(temp_path, "wb") as f:
+            f.write(await audio.read())
+
+        # 2. Run full pipeline
+        result = run_from_voice(
+            audio_file_path=temp_path,
+            sample_no=sample_no,
+            depth_ft=depth_ft
+        )
+
+        # 3. Return SampleEntry as JSON
+        return asdict(result)
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
-    # 2. Run full pipeline
-    result = run_from_voice(
-        audio_file_path=temp_path,
-        sample_no=sample_no,
-        depth_ft=depth_ft
-    )
+@app.post("/projects/{project_id}/boreholes/{borehole_id}/samples/recalculate")
+async def recalculate_sample(project_id: str, borehole_id: str, sample_data: str = Form(...)):
+    try:
+        from pipeline import combination
+        data = json.loads(sample_data)
+        blow_counts = data["blow_counts"]
+        pen_depths = data["pen_depths"]
+        transcript = data.get("raw_transcript", "")
 
-    # 3. Clean up temp file
-    os.remove(temp_path)
-
-    # 4. Return SampleEntry as JSON
-    return asdict(result)
-
+        result = combination(
+            transcript=transcript,
+            blow_counts=blow_counts,
+            sample_no=data["sample_no"],
+            depth_ft=data["depth_ft"]
+        )
+        return asdict(result)
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/projects/{project_id}/boreholes/{borehole_id}/samples/confirmed")
 async def confirm_sample(project_id:str, borehole_id:str,sample_data: str = Form(...)):
+    try:
+        # Look up project_no and borehole_no for denormalized storage
+        borehole = supabase_client.table("boreholes") \
+            .select("borehole_no, project_no") \
+            .eq("id", borehole_id) \
+            .eq("project_id", project_id) \
+            .limit(1) \
+            .execute()
+        if not borehole.data:
+            return {"saved": False, "error": "Borehole not found"}
 
-    sample = supabase_client.table("boreholes") \
-        .select("id") \
-        .eq("borehole_id",borehole_id) \
-        .eq("project_id",project_id) \
-        .limit(1) \
-        .execute()
-    data = json.loads(sample_data)
-    sample_id = str(uuid4())
+        data = json.loads(sample_data)
 
-    # Convert lists to JSON strings for storage
-    data["blow_counts"] = json.dumps(data["blow_counts"])
-    data["pen_depths"] = json.dumps(data["pen_depths"])
-    data["flags"] = json.dumps(data["flags"])
-    data["project_id"] = project_id
-    data["borehole_id"] = borehole_id
-    data["id"] = sample_id
+        # Convert lists to JSON strings for storage
+        # Recalculate SPT fields from submitted blow counts
+        blow_counts = data["blow_counts"]
+        pen_depths = data["pen_depths"]
+        if blow_counts:
+            spt = parse_blow_counts(blow_counts, pen_depths)
+            data["n_value"] = spt["n_value"]
+            data["n_value_log"] = spt["n_value_log"]
+            data["refusal"] = spt["refusal"]
 
-    result = supabase_client.table("samples").insert(data).execute()
+        data["blow_counts"] = json.dumps(blow_counts)
+        data["pen_depths"] = json.dumps(pen_depths)
+        data["flags"] = json.dumps(data["flags"])
+        data["project_id"] = project_id
+        data["borehole_id"] = borehole_id
+        data["project_no"] = borehole.data[0]["project_no"]
+        data["borehole_no"] = borehole.data[0]["borehole_no"]
 
-    if not result.data:
-        return {"saved": False, "error": "Insert failed"}
-    
-    return {"saved": True, "sample_id":sample_id}
+        result = supabase_client.table("samples").insert(data).execute()
+
+        if not result.data:
+            return {"saved": False, "error": "Insert failed"}
+
+        sample_id = result.data[0]["id"]
+        return {"saved": True, "sample_id": sample_id}
+    except Exception as e:
+        return {"saved": False, "error": str(e)}
 
 @app.get("/")
 def serve_ui():
-    with open("index.html", "r") as f:
-        return HTMLResponse(content=f.read())
+    try:
+        with open("index.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except Exception as e:
+        return HTMLResponse(content=f"<pre>Error: {e}</pre>", status_code=500)

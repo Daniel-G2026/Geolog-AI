@@ -246,6 +246,38 @@
             font-size: 13px; color: var(--danger); display: none;
         }
         .error-box.visible { display: block; }
+
+        .phase-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+        .phase-card.hidden { display: none; }
+        .card.hidden { display: none; }
+
+        .phase-badge { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--accent); text-transform: uppercase; margin-bottom: 2px; }
+        .phase-subtitle { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+
+        .action-btn {
+            width: 100%; padding: 14px;
+            background: var(--accent);
+            border: none; border-radius: 10px;
+            color: #0d1a12;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px; font-weight: 600; letter-spacing: 1px;
+            cursor: pointer; transition: all 0.15s; text-transform: uppercase;
+            margin-top: 4px;
+        }
+        .action-btn:active { background: var(--accent-dim); transform: scale(0.98); }
+        .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .context-bar {
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 8px; padding: 10px 14px;
+            font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+            color: var(--text-mid); display: none; gap: 16px; flex-wrap: wrap;
+        }
+        .context-bar.visible { display: flex; }
+        .context-item span { color: var(--accent); }
+
+        .req { color: var(--danger); }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -257,25 +289,110 @@
 
 <main>
 
-    <!-- SAMPLE INFO INPUTS -->
-    <div class="card">
+    <!-- PROJECT SETUP -->
+    <div class="phase-card" id="projectCard">
+        <div class="phase-badge">Step 1 — Project</div>
+        <div class="phase-subtitle">Enter project details to begin logging.</div>
+        <div class="input-group">
+            <label>Project No. <span class="req">*</span></label>
+            <input type="text" id="project_no" placeholder="25-1021">
+        </div>
+        <div class="input-row">
+            <div class="input-group">
+                <label>Client <span class="req">*</span></label>
+                <input type="text" id="client" placeholder="Client Name">
+            </div>
+            <div class="input-group">
+                <label>Project Name</label>
+                <input type="text" id="project_name" placeholder="Site Name">
+            </div>
+        </div>
+        <div class="input-group">
+            <label>Location</label>
+            <input type="text" id="location" placeholder="Address / Coordinates">
+        </div>
+        <button class="action-btn" id="createProjectBtn" onclick="createProject()">Create Project →</button>
+    </div>
+
+    <!-- BOREHOLE SETUP -->
+    <div class="phase-card hidden" id="boreholeCard">
+        <div class="phase-badge">Step 2 — Borehole</div>
+        <div class="input-row">
+            <div class="input-group">
+                <label>Borehole No. <span class="req">*</span></label>
+                <input type="text" id="borehole_no" placeholder="BH25-1">
+            </div>
+            <div class="input-group">
+                <label>Technician <span class="req">*</span></label>
+                <input type="text" id="tech" placeholder="Name">
+            </div>
+        </div>
+        <div class="input-row">
+            <div class="input-group">
+                <label>Drilling Method</label>
+                <input type="text" id="drilling_method" placeholder="Hollow Stem Auger">
+            </div>
+            <div class="input-group">
+                <label>OD Augers</label>
+                <input type="text" id="od_augers" placeholder="203mm">
+            </div>
+        </div>
+        <div class="input-row">
+            <div class="input-group">
+                <label>Date Started</label>
+                <input type="text" id="date_started" placeholder="2025-04-04">
+            </div>
+            <div class="input-group">
+                <label>Driller</label>
+                <input type="text" id="driller" placeholder="Drilling Co.">
+            </div>
+        </div>
+        <div class="input-row">
+            <div class="input-group">
+                <label>Weather</label>
+                <input type="text" id="weather" placeholder="Cloudy">
+            </div>
+            <div class="input-group">
+                <label>Drilling Rig</label>
+                <input type="text" id="drilling_rig" placeholder="Rig #2">
+            </div>
+        </div>
+        <div class="input-row">
+            <div class="input-group">
+                <label>Hammer Weight</label>
+                <input type="text" id="hammer_weight" placeholder="140 lbs">
+            </div>
+            <div class="input-group">
+                <label>Hammer Drop</label>
+                <input type="text" id="hammer_drop" placeholder="30 in">
+            </div>
+        </div>
+        <button class="action-btn" id="createBoreholeBtn" onclick="createBorehole()">Start Borehole →</button>
+    </div>
+
+    <!-- ACTIVE CONTEXT BAR (shows project + borehole once set) -->
+    <div class="context-bar" id="contextBar">
+        <div class="context-item">Project: <span id="ctxProject">—</span></div>
+        <div class="context-item">BH: <span id="ctxBorehole">—</span></div>
+    </div>
+
+    <!-- SAMPLE INFO INPUTS (hidden until borehole is active) -->
+    <div class="card hidden" id="sampleInfoCard">
         <div class="card-label">Sample Info</div>
         <div class="input-row">
             <div class="input-group">
-                <label>Depth (ft)</label>
+                <label>Depth (ft) <span class="req">*</span></label>
                 <input type="number" id="depth_ft" placeholder="5.0" step="0.5" min="0">
             </div>
             <div class="input-group">
-                <label>Sample No.</label>
+                <label>Sample No. <span class="req">*</span></label>
                 <input type="number" id="sample_no" placeholder="1" min="1" value="1">
             </div>
         </div>
     </div>
 
- 
-
     <!-- RECORD SECTION -->
-    <div class="record-card">
+    <div class="record-card hidden" id="recordCard">
         <div class="record-btn" id="recordBtn" onclick="toggleRecord()">
             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
@@ -353,8 +470,8 @@
             </div>
 
             <div class="edit-field">
-                <label>Blow Counts (comma separated)</label>
-                <input type="text" id="editBlowCounts" placeholder="e.g. 12, 17, 19, 23">
+                <label>Blow Counts (comma separated — use 50/3 for refusal over 3")</label>
+                <input type="text" id="editBlowCounts" placeholder="e.g. 12, 17, 19, 23 or 12, 17, 50/3">
             </div>
         </div>
 
@@ -370,6 +487,7 @@
             without clearing depth/pen depths/sample number inputs.
         -->
         <button class="rerecord-btn" onclick="reRecord()">🎤 &nbsp;Re-record</button>
+        <button class="rerecord-btn" id="recalcBtn" onclick="recalculate()" style="color: var(--warn); border-color: var(--warn);">↻ &nbsp;Recalculate with edited blow counts</button>
 
         <button class="confirm-btn" id="confirmBtn" onclick="confirmSample()">
             ✓ &nbsp;Confirm & Save
@@ -390,6 +508,96 @@
     let audioChunks = [];
     let isRecording = false;
     let currentSampleData = null;
+    let currentProjectId = null;
+    let currentBoreholeId = null;
+
+    // ── Phase 1: Create Project ──
+    async function createProject() {
+        const project_no  = document.getElementById('project_no').value.trim();
+        const client       = document.getElementById('client').value.trim();
+        const project_name = document.getElementById('project_name').value.trim();
+        const location     = document.getElementById('location').value.trim();
+
+        if (!project_no || !client) {
+            showError('Project No. and Client are required (*).');
+            return;
+        }
+        hideError();
+
+        const btn = document.getElementById('createProjectBtn');
+        btn.disabled = true;
+        btn.textContent = 'Creating...';
+
+        try {
+            const response = await fetch(`${API_BASE}/projects`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_no, client, project_name, location })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.saved) throw new Error(result.error || 'Create failed');
+
+            currentProjectId = result.project_id;
+            document.getElementById('ctxProject').textContent = project_no;
+
+            // Advance to borehole phase
+            document.getElementById('projectCard').classList.add('hidden');
+            document.getElementById('boreholeCard').classList.remove('hidden');
+
+        } catch (err) {
+            showError('Project error: ' + err.message);
+            btn.disabled = false;
+            btn.textContent = 'Create Project →';
+        }
+    }
+
+    // ── Phase 2: Create Borehole ──
+    async function createBorehole() {
+        const borehole_no      = document.getElementById('borehole_no').value.trim();
+        const tech             = document.getElementById('tech').value.trim();
+        const drilling_method  = document.getElementById('drilling_method').value.trim();
+        const od_augers        = document.getElementById('od_augers').value.trim();
+        const date_started     = document.getElementById('date_started').value.trim();
+        const driller          = document.getElementById('driller').value.trim();
+        const weather          = document.getElementById('weather').value.trim() || null;
+        const drilling_rig     = document.getElementById('drilling_rig').value.trim();
+        const hammer_weight    = document.getElementById('hammer_weight').value.trim() || null;
+        const hammer_drop      = document.getElementById('hammer_drop').value.trim() || null;
+
+        if (!borehole_no || !tech) {
+            showError('Borehole No. and Technician are required (*).');
+            return;
+        }
+        hideError();
+
+        const btn = document.getElementById('createBoreholeBtn');
+        btn.disabled = true;
+        btn.textContent = 'Creating...';
+
+        try {
+            const response = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ borehole_no, tech, drilling_method, od_augers, date_started, driller, weather, drilling_rig, hammer_weight, hammer_drop })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.saved) throw new Error(result.error || 'Create failed');
+
+            currentBoreholeId = result.borehole_id;
+            document.getElementById('ctxBorehole').textContent = borehole_no;
+
+            // Advance to sample recording phase
+            document.getElementById('boreholeCard').classList.add('hidden');
+            document.getElementById('contextBar').classList.add('visible');
+            document.getElementById('sampleInfoCard').classList.remove('hidden');
+            document.getElementById('recordCard').classList.remove('hidden');
+
+        } catch (err) {
+            showError('Borehole error: ' + err.message);
+            btn.disabled = false;
+            btn.textContent = 'Start Borehole →';
+        }
+    }
 
     function toggleRecord() {
         if (isRecording) return;
@@ -454,7 +662,7 @@
         try {
             document.getElementById('recordStatus').textContent = 'Transcribing + extracting...';
 
-            const response = await fetch(`${API_BASE}/log-sample`, {
+            const response = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/draft`, {
                 method: 'POST',
                 body: formData
             });
@@ -564,7 +772,7 @@
             const formData = new FormData();
             formData.append('sample_data', JSON.stringify(editedData));
 
-            const response = await fetch(`${API_BASE}/confirm-sample`, {
+            const response = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/confirmed`, {
                 method: 'POST',
                 body: formData
             });
@@ -572,7 +780,8 @@
             if (!response.ok) throw new Error('Save failed');
 
             const result = await response.json();
-            showToast(`✓ Saved — ID ${result.id}`);
+            if (!result.saved) throw new Error(result.error || 'Save failed');
+            showToast(`✓ Saved — ID ${result.sample_id}`);
             btn.textContent = '✓ Saved';
             document.getElementById('newBtn').classList.add('visible');
 
@@ -584,6 +793,58 @@
             showError('Save failed — check connection.');
             btn.disabled = false;
             btn.textContent = '✓  Confirm & Save';
+        }
+    }
+
+    async function recalculate() {
+        if (!currentSampleData) return;
+
+        const rawBlows = document.getElementById('editBlowCounts').value
+            .split(',').map(v => v.trim()).filter(v => v.length > 0);
+
+        const parsedBlowCounts = [];
+        const parsedPenDepths = [];
+        rawBlows.forEach(token => {
+            if (token.includes('/')) {
+                const parts = token.split('/');
+                parsedBlowCounts.push(parseInt(parts[0]));
+                parsedPenDepths.push(parseFloat(parts[1]));
+            } else {
+                parsedBlowCounts.push(parseInt(token));
+                parsedPenDepths.push(6.0);
+            }
+        });
+
+        const updatedData = {
+            ...currentSampleData,
+            blow_counts: parsedBlowCounts,
+            pen_depths: parsedPenDepths
+        };
+
+        const btn = document.getElementById('recalcBtn');
+        btn.textContent = '↻  Recalculating...';
+        btn.disabled = true;
+
+        try {
+            const formData = new FormData();
+            formData.append('sample_data', JSON.stringify(updatedData));
+
+            const response = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/recalculate`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+
+            currentSampleData = data;
+            displayResult(data);
+
+        } catch (err) {
+            showError('Recalculate failed: ' + err.message);
+        } finally {
+            btn.textContent = '↻  Recalculate with edited blow counts';
+            btn.disabled = false;
         }
     }
 
