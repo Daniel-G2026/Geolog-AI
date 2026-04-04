@@ -30,7 +30,7 @@ client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 # Claude must use every provided value exactly as given.
 # ─────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are a geotechnical logger for Envision Consultants Ltd.
+ENVISION_SYSTEM_PROMPT = """You are a geotechnical logger for Envision Consultants Ltd.
 Your job is to format the provided structured soil data into a report-ready description
 that exactly matches Envision's logging style.
 Do NOT determine or infer consistency or density — it is already provided to you.
@@ -52,6 +52,62 @@ RULES:
 
 Return only the formatted description string. No explanation, no extra text."""
 
+ASTM_SYSTEM_PROMPT = """You are a geotechnical soil logger formatting structured field soil data into a report-ready description using ASTM D2488 / USCS-style field logging conventions.
+
+Your job is to produce a clear, professional soil description based on visual-manual field logging data.
+
+IMPORTANT:
+- Use only the data provided.
+- Only check original description for properties tagged with (check description segment)
+- Do not invent missing properties.
+- If a field is null, empty, or not provided, omit it.
+- If a USCS symbol is explicitly provided, include it.
+- If a USCS symbol is not provided, do not infer it.
+- If consistency/density is provided as a derived field, use it exactly as given.
+- Do not alter wording unless needed for grammar, singular/plural agreement, or proper report formatting.
+
+FORMAT RULES:
+1. Start with the soil classification phrase.
+   - Build the classification from the dominant soil and modifiers/components in USCS style.
+   - Examples:
+     - "silty clay"
+     - "sandy silt"
+     - "sand and gravel"
+     - "gravelly sand"
+2. If a USCS symbol provided (check description segment, notation: "symbol is/symbol  or group name is/group name ...), place it immediately after the soil classification in parentheses.
+   - Example inputs: "silty clay .... symbol is cl, sand ... groupname is SM)
+   - Example outputs: "silty clay (CL), Sand (SM)" where CL and SM are the symbols
+3. If fill is true, prefix the description with "Fill," unless the structured data already makes the fill nature explicit.
+4. After the main soil classification, include remaining descriptive fields in a natural professional sequence.
+5. Preferred descriptive order after the soil name is:
+   - additional quantified components
+   - inclusions / foreign materials
+   - color
+   - moisture
+   - consistency or density
+   - plasticity (check description segment) if found include in description
+   - gradation (check description segment) if found include in description
+6. Use commas to separate descriptors.
+7. End the description with a period.
+8. Keep the tone concise and engineering-report ready.
+9. Do not use bullet points.
+10. Return only the final formatted description string.
+
+SPECIAL HANDLING:
+- Components should read naturally:
+  - "with trace sand"
+  - "some gravel"
+  - "trace organics"
+- Inclusions should be included only if present.
+- Do not repeat the primary soil name as a component.
+- If split_layer is true and multiple soil names are provided, join them using " / " and then continue with shared descriptors.
+- If only one soil name is present, do not use a slash.
+
+OUTPUT EXAMPLES:
+- "Silty clay (CL), with trace sand, brown, moist, stiff."
+- "Fill, sandy silt, with gravel and brick fragments, dark brown, moist."
+- "Sand and gravel, wet, dense."
+"""
 
 # ─────────────────────────────────────────────
 # CLAUDE EXTRACTION PROMPT
@@ -75,11 +131,12 @@ Fields to extract:
 - inclusions: list of ALL inclusions or foreign objects found in the sample
 - fill: true if "fill" appears as a soil type descriptor, false otherwise
 
+
 Rules:
 - soil_name must NOT include trace/some quantifiers
     if multiple valid soil names are detected, return soil_name as a list of strings — if only one, return it as a single string
 - components are secondary soils preceded by trace/some/trace to some
-- inclusions: standard geological terms (rock fragments, oxidation) go in as-is.
+- inclusions: standard geological terms (rock fragments, oxidation,concrete fragments,cobbles,boulders) go in as-is.
   Organic matter of any kind (roots, branches, organics, rootlets) → "organic inclusions"
   Unusual foreign objects (coin, brick fragment, glass, metal debris) → include exactly as found as "foreign object" e.g "glass"
 - Use null for missing strings
@@ -286,8 +343,15 @@ def combination(transcript: str, blow_counts: list,
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": json.dumps(soil_data, indent=2)}]
+        system=ASTM_SYSTEM_PROMPT,
+        messages=[
+            {"role": "user", 
+                   "content": f"""
+                   Structured soil data:{json.dumps(soil_data, indent=2)}
+
+                   original description: {description_segment}"""
+                   }                               
+            ]
     )
     description = message.content[0].text
 
@@ -295,7 +359,7 @@ def combination(transcript: str, blow_counts: list,
     # Recovery cannot exceed total inches driven. When it does, flag for manual review.
     # Recovery below total penetration: no comment or flag changes (voice comments unchanged).
     comments = segments.get("comments")
-    comments.strip(" ,.")
+    comments = comments.strip(" ,.")
     if not comments:
         comments = remainder_string.strip(" ,.")
     total_penetration = sum(pen_depths)

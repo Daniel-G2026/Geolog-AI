@@ -34,6 +34,10 @@ WHISPER_PROMPT = (
     "silty clay till, sandy silt till, sand and silt till, silty sand till"
     "blow counts, blows, recovery, description, comments, wet spoon"
     "auger grinding"
+    "gradation - poorly graded, well graded"
+    "plasticity - non plastic, slightly plastic, low plasticity, high plasticity"
+    "uscs/group symbol - CL, ML, SM,SP, GP, GM"
+    "group name"
     "All numbers should not be spelled and should be transcribed as numbers e.g fifty for four should be 50 for 4 etc"
     
 )
