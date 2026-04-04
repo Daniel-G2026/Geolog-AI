@@ -53,23 +53,19 @@ class BoreholeLog:
     """
 
     # ── Required header fields ──
-    job_no: str                 # project reference number e.g. "25-1021"
-    client: str                 # client name
-    project: str                # project name
-    location: str               # site location
     borehole_no: str            # e.g. "BH25-1"
     tech: str                   # field technician name
     drilling_method: str        # e.g. "Hollow Stem Auger"
     od_augers: str              # auger diameter e.g. "203mm"
-    weather: str                # weather conditions
     date_started: str           # date drilling started
+    driller: str                # drilling company
     sheet_no: int = 1
     total_sheets: int = 1
-    # ── Optional header fields ──
-    driller: str = ""               # driller name
+    # ── Optional header fields ──                  
+    weather: Optional[str] = None                
     drilling_rig: str = ""
-    hammer_weight: Optional[float] = None   # lbs
-    hammer_drop: Optional[float] = None     # inches
+    hammer_weight: Optional[str] = None   # lbs
+    hammer_drop: Optional[str] = None     # inches
     water_level_depth: Optional[float] = None   # m
     cave_in: Optional[float] = None             # m
     
@@ -89,4 +85,24 @@ class BoreholeLog:
             if sample.sample_no == sample_no:
                 return sample
         return None
-        
+class Project:
+     # ── Required header fields ──
+    project_no: str                 # project reference number e.g. "25-1021"
+    client: str                 # client name
+    project_name: str                # project name
+    location: str               # site location      
+
+    boreholes: list = field(default_factory=list)  
+
+    def add_borehole(self,borehole:BoreholeLog):
+        self.boreholes.append(borehole)
+
+    def total_boreholes(self):
+        return len(self.boreholes)
+    
+    def get_borehole(self,borehole_no):
+        for borehole in self.boreholes:
+            if borehole.borehole_no != borehole_no:
+                return None
+            else:
+                return borehole
