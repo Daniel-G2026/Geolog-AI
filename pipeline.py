@@ -61,8 +61,6 @@ IMPORTANT:
 - Only check original description for properties tagged with (check description segment)
 - Do not invent missing properties.
 - If a field is null, empty, or not provided, omit it.
-- If a USCS symbol is explicitly provided, include it.
-- If a USCS symbol is not provided, do not infer it.
 - If consistency/density is provided as a derived field, use it exactly as given.
 - Do not alter wording unless needed for grammar, singular/plural agreement, or proper report formatting.
 
@@ -74,9 +72,10 @@ FORMAT RULES:
      - "sandy silt"
      - "sand and gravel"
      - "gravelly sand"
-2. If a USCS symbol provided (check description segment, notation: "symbol is/symbol  or group name is/group name ...), place it immediately after the soil classification in parentheses.
-   - Example inputs: "silty clay .... symbol is cl, sand ... groupname is SM)
-   - Example outputs: "silty clay (CL), Sand (SM)" where CL and SM are the symbols
+2. Uscs symbol (check description segment)
+    - (example inputs:include in description as): "symbol is cl":(CL), "groupname is SM":(SM). possible uscs symbols examples : gw,gp,gm,gc,sw,sp,sm,sc,cl,ml,ol,ch,mh,oh,pt
+    - If a USCS symbol is provided (check description segment for symbol, place it immediately after the soil classification in parentheses in the description.
+    - e.g "Silty clay (SW)
 3. If fill is true, prefix the description with "Fill," unless the structured data already makes the fill nature explicit.
 4. After the main soil classification, include remaining descriptive fields in a natural professional sequence.
 5. Preferred descriptive order after the soil name is:
@@ -86,7 +85,11 @@ FORMAT RULES:
    - moisture
    - consistency or density
    - plasticity (check description segment) if found include in description
+     - (example inputs:include in description as): "plasticity is low":"low plasticity", "high plasticity":"high plasticity" "little bit plastic":"slightly plastic"
+      
    - gradation (check description segment) if found include in description
+    -  example inputs: include in description as: "poorly graded":poorly graded, "well graded":well graded
+
 6. Use commas to separate descriptors.
 7. End the description with a period.
 8. Keep the tone concise and engineering-report ready.
@@ -107,6 +110,7 @@ OUTPUT EXAMPLES:
 - "Silty clay (CL), with trace sand, brown, moist, stiff."
 - "Fill, sandy silt, with gravel and brick fragments, dark brown, moist."
 - "Sand and gravel, wet, dense."
+
 """
 
 # ─────────────────────────────────────────────
@@ -358,10 +362,11 @@ def combination(transcript: str, blow_counts: list,
     # Step 11 — recovery vs sum of pen depths (total penetration interval)
     # Recovery cannot exceed total inches driven. When it does, flag for manual review.
     # Recovery below total penetration: no comment or flag changes (voice comments unchanged).
-    comments = segments.get("comments")
+    comments = segments.get("comments") or ""
     comments = comments.strip(" ,.")
     if not comments:
-        comments = remainder_string.strip(" ,.")
+        if remainder_string:
+            comments = remainder_string.strip(" ,.")
     total_penetration = sum(pen_depths)
     recovery_vs_pen_flags = []
     if recovery_inches is not None:
