@@ -20,18 +20,18 @@ supabase_client = create_client(
 class ProjectCreate(BaseModel):
     project_no: str                 # project reference number e.g. "25-1021"
     client: str                 # client name
-    project_name: str                # project name
-    location: str               # site location      
+    project_name: Optional[str] = None                # project name
+    location: Optional[str] = None            # site location      
     
 
 class BoreholeCreate(BaseModel):
     # ── Required header fields ──
     borehole_no: str            # e.g. "BH25-1"
     tech: str                   # field technician name
-    drilling_method: str        # e.g. "Hollow Stem Auger"
-    od_augers: str              # auger diameter e.g. "203mm"
-    date_started: str           # date drilling started
-    driller: str                # drilling company
+    drilling_method: Optional[str] = None        # e.g. "Hollow Stem Auger"
+    od_augers: Optional[str] = None              # auger diameter e.g. "203mm"
+    date_started: Optional[str] = None         # date drilling started
+    driller: Optional[str] = None               # drilling company
     sheet_no: int = 1
     total_sheets: int = 1
     # ── Optional header fields ──                  
