@@ -104,6 +104,36 @@ app.add_middleware(
 def health():
     return {"status": "ok"}
 
+@app.get("/projects")
+async def find_project(project_no: str):
+    try:
+        result = supabase_client.table("projects") \
+            .select("id, project_no, client, project_name, location") \
+            .eq("project_no", project_no) \
+            .limit(1) \
+            .execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail=f"Project '{project_no}' not found.")
+        return {"found": True, "project": result.data[0]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/projects/{project_id}/boreholes")
+async def list_boreholes(project_id: str):
+    try:
+        get_project(project_id)
+        result = supabase_client.table("boreholes") \
+            .select("id, borehole_no, tech, date_started, drilling_method") \
+            .eq("project_id", project_id) \
+            .execute()
+        return {"boreholes": result.data}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/projects")
 async def create_project(data: ProjectCreate):
     try:
