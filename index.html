@@ -125,6 +125,20 @@
         .stop-btn.visible { display: flex; }
         .stop-btn:active { background: var(--border); }
 
+        .cancel-btn {
+            width: 100%; padding: 13px;
+            background: transparent;
+            border: 1px solid var(--danger);
+            border-radius: 10px;
+            color: var(--danger);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s;
+            display: none;
+        }
+        .cancel-btn.visible { display: block; }
+        .cancel-btn:active { background: rgba(248,113,113,0.1); }
+
         /* ── RESULT CARD ── */
         .result-card {
             background: var(--surface);
@@ -404,6 +418,7 @@
             Say: <code>description</code> → soil → <code>blows</code> → counts (use <code>50 for 3</code> for refusal) → <code>recovery</code> → inches → <code>comments</code>
         </div>
         <button class="stop-btn" id="stopBtn" onclick="stopRecording()">⏹ &nbsp;Stop Recording</button>
+        <button class="cancel-btn" id="cancelBtn" onclick="cancelProcessing()">✕ &nbsp;Cancel</button>
     </div>
 
     <!-- ERROR -->
@@ -510,6 +525,7 @@
     let currentSampleData = null;
     let currentProjectId = null;
     let currentBoreholeId = null;
+    let currentAbortController = null;
 
     // ── Phase 1: Create Project ──
     async function createProject() {
@@ -535,7 +551,7 @@
                 body: JSON.stringify({ project_no, client, project_name, location })
             });
             const result = await response.json();
-            if (!response.ok || !result.saved) throw new Error(result.error || 'Create failed');
+            if (!response.ok) throw new Error(result.detail || 'Create failed');
 
             currentProjectId = result.project_id;
             document.getElementById('ctxProject').textContent = project_no;
@@ -581,7 +597,7 @@
                 body: JSON.stringify({ borehole_no, tech, drilling_method, od_augers, date_started, driller, weather, drilling_rig, hammer_weight, hammer_drop })
             });
             const result = await response.json();
-            if (!response.ok || !result.saved) throw new Error(result.error || 'Create failed');
+            if (!response.ok) throw new Error(result.detail || 'Create failed');
 
             currentBoreholeId = result.borehole_id;
             document.getElementById('ctxBorehole').textContent = borehole_no;
@@ -661,11 +677,17 @@
 
         try {
             document.getElementById('recordStatus').textContent = 'Transcribing + extracting...';
+            document.getElementById('cancelBtn').classList.add('visible');
+
+            currentAbortController = new AbortController();
 
             const response = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/draft`, {
                 method: 'POST',
-                body: formData
+                body: formData,
+                signal: currentAbortController.signal
             });
+
+            document.getElementById('cancelBtn').classList.remove('visible');
 
             if (!response.ok) throw new Error(await response.text());
 
@@ -674,8 +696,13 @@
             displayResult(data);
 
         } catch (err) {
-            showError('Pipeline error — check server. ' + err.message.slice(0, 100));
-            resetStatus();
+            document.getElementById('cancelBtn').classList.remove('visible');
+            if (err.name === 'AbortError') {
+                resetStatus();
+            } else {
+                showError('Pipeline error — check server. ' + err.message.slice(0, 100));
+                resetStatus();
+            }
         }
     }
 
@@ -777,10 +804,8 @@
                 body: formData
             });
 
-            if (!response.ok) throw new Error('Save failed');
-
             const result = await response.json();
-            if (!result.saved) throw new Error(result.error || 'Save failed');
+            if (!response.ok) throw new Error(result.detail || 'Save failed');
             showToast(`✓ Saved — ID ${result.sample_id}`);
             btn.textContent = '✓ Saved';
             document.getElementById('newBtn').classList.add('visible');
@@ -846,6 +871,15 @@
             btn.textContent = '↻  Recalculate with edited blow counts';
             btn.disabled = false;
         }
+    }
+
+    function cancelProcessing() {
+        if (currentAbortController) {
+            currentAbortController.abort();
+            currentAbortController = null;
+        }
+        document.getElementById('cancelBtn').classList.remove('visible');
+        resetStatus();
     }
 
     // FIX 4 — Re-record: hides result, keeps depth/pen depths/sample no intact
