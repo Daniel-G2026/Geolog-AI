@@ -125,6 +125,20 @@
         .stop-btn.visible { display: flex; }
         .stop-btn:active { background: var(--border); }
 
+        .cancel-btn {
+            width: 100%; padding: 13px;
+            background: transparent;
+            border: 1px solid var(--danger);
+            border-radius: 10px;
+            color: var(--danger);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s;
+            display: none;
+        }
+        .cancel-btn.visible { display: block; }
+        .cancel-btn:active { background: rgba(248,113,113,0.1); }
+
         /* ── RESULT CARD ── */
         .result-card {
             background: var(--surface);
@@ -289,10 +303,18 @@
 
 <main>
 
-    <!-- PROJECT SETUP -->
-    <div class="phase-card" id="projectCard">
+    <!-- STEP 1: PROJECT MODE SELECT -->
+    <div class="phase-card" id="projectModeCard">
         <div class="phase-badge">Step 1 — Project</div>
-        <div class="phase-subtitle">Enter project details to begin logging.</div>
+        <div class="input-row">
+            <button class="action-btn" onclick="showNewProject()" style="margin-top:0">+ New Project</button>
+            <button class="action-btn" onclick="showLoadProject()" style="margin-top:0; background:var(--surface2); color:var(--accent); border:1px solid var(--accent);">Load Existing</button>
+        </div>
+    </div>
+
+    <!-- NEW PROJECT FORM -->
+    <div class="phase-card hidden" id="projectCard">
+        <div class="phase-badge">New Project</div>
         <div class="input-group">
             <label>Project No <span class="req">*</span></label>
             <input type="text" id="project_no" placeholder="Project Number">
@@ -311,12 +333,38 @@
             <label>Location</label>
             <input type="text" id="location" placeholder="Address / Coordinates">
         </div>
-        <button class="action-btn" id="createProjectBtn" onclick="createProject()">Create Project →</button>
+        <div class="input-row" style="margin-top:4px">
+            <button class="action-btn" style="background:var(--surface2);color:var(--text-dim);border:1px solid var(--border);margin-top:0" onclick="showProjectMode()">← Back</button>
+            <button class="action-btn" id="createProjectBtn" onclick="createProject()" style="margin-top:0">Create Project →</button>
+        </div>
     </div>
 
-    <!-- BOREHOLE SETUP -->
-    <div class="phase-card hidden" id="boreholeCard">
+    <!-- LOAD EXISTING PROJECT -->
+    <div class="phase-card hidden" id="loadProjectCard">
+        <div class="phase-badge">Load Project</div>
+        <div class="input-group">
+            <label>Project No. <span class="req">*</span></label>
+            <input type="text" id="load_project_no" placeholder="25-1021">
+        </div>
+        <div class="input-row" style="margin-top:4px">
+            <button class="action-btn" style="background:var(--surface2);color:var(--text-dim);border:1px solid var(--border);margin-top:0" onclick="showProjectMode()">← Back</button>
+            <button class="action-btn" id="loadProjectBtn" onclick="loadProject()" style="margin-top:0">Load →</button>
+        </div>
+    </div>
+
+    <!-- STEP 2: BOREHOLE MODE SELECT -->
+    <div class="phase-card hidden" id="boreholeModeCard">
         <div class="phase-badge">Step 2 — Borehole</div>
+        <div class="input-row">
+            <button class="action-btn" onclick="showNewBorehole()" style="margin-top:0">+ New Borehole</button>
+            <button class="action-btn" onclick="showBoreholeList()" style="margin-top:0; background:var(--surface2); color:var(--accent); border:1px solid var(--accent);">Load Existing</button>
+        </div>
+        <button class="action-btn" onclick="changeProject()" style="background:transparent;color:var(--text-dim);border:1px solid var(--border);margin-top:4px">← Change Project</button>
+    </div>
+
+    <!-- NEW BOREHOLE FORM -->
+    <div class="phase-card hidden" id="boreholeCard">
+        <div class="phase-badge">New Borehole</div>
         <div class="input-row">
             <div class="input-group">
                 <label>Borehole No <span class="req">*</span></label>
@@ -367,13 +415,25 @@
                 <input type="text" id="hammer_drop" placeholder="30 in">
             </div>
         </div>
-        <button class="action-btn" id="createBoreholeBtn" onclick="createBorehole()">Start Borehole →</button>
+        <div class="input-row" style="margin-top:4px">
+            <button class="action-btn" style="background:var(--surface2);color:var(--text-dim);border:1px solid var(--border);margin-top:0" onclick="showBoreholeMode()">← Back</button>
+            <button class="action-btn" id="createBoreholeBtn" onclick="createBorehole()" style="margin-top:0">Start Borehole →</button>
+        </div>
+    </div>
+
+    <!-- EXISTING BOREHOLE LIST -->
+    <div class="phase-card hidden" id="boreholeListCard">
+        <div class="phase-badge">Select Borehole</div>
+        <div id="boreholeListItems" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <button class="action-btn" style="background:var(--surface2);color:var(--text-dim);border:1px solid var(--border)" onclick="showBoreholeMode()">← Back</button>
     </div>
 
     <!-- ACTIVE CONTEXT BAR (shows project + borehole once set) -->
     <div class="context-bar" id="contextBar">
         <div class="context-item">Project: <span id="ctxProject">—</span></div>
         <div class="context-item">BH: <span id="ctxBorehole">—</span></div>
+        <button onclick="changeBorehole()" style="margin-left:auto;background:transparent;border:none;color:var(--text-dim);font-family:IBM Plex Mono,monospace;font-size:11px;cursor:pointer;padding:0;">← Change BH</button>
+        <button onclick="changeProject()" style="background:transparent;border:none;color:var(--text-dim);font-family:IBM Plex Mono,monospace;font-size:11px;cursor:pointer;padding:0;">← Change Project</button>
     </div>
 
     <!-- SAMPLE INFO INPUTS (hidden until borehole is active) -->
@@ -404,6 +464,7 @@
             Say: <code>description</code> → soil → <code>blows</code> → counts (use <code>50 for 3</code> for refusal) → <code>recovery</code> → inches → <code>comments</code>
         </div>
         <button class="stop-btn" id="stopBtn" onclick="stopRecording()">⏹ &nbsp;Stop Recording</button>
+        <button class="cancel-btn" id="cancelBtn" onclick="cancelProcessing()">✕ &nbsp;Cancel</button>
     </div>
 
     <!-- ERROR -->
@@ -510,6 +571,139 @@
     let currentSampleData = null;
     let currentProjectId = null;
     let currentBoreholeId = null;
+    let currentAbortController = null;
+
+    // ── Navigation helpers ──
+    function showProjectMode() {
+        document.getElementById('projectModeCard').classList.remove('hidden');
+        document.getElementById('projectCard').classList.add('hidden');
+        document.getElementById('loadProjectCard').classList.add('hidden');
+        document.getElementById('boreholeModeCard').classList.add('hidden');
+    }
+    function showNewProject() {
+        document.getElementById('projectModeCard').classList.add('hidden');
+        document.getElementById('projectCard').classList.remove('hidden');
+    }
+    function showLoadProject() {
+        document.getElementById('projectModeCard').classList.add('hidden');
+        document.getElementById('loadProjectCard').classList.remove('hidden');
+    }
+    function showBoreholeMode() {
+        document.getElementById('boreholeModeCard').classList.remove('hidden');
+        document.getElementById('boreholeCard').classList.add('hidden');
+        document.getElementById('boreholeListCard').classList.add('hidden');
+    }
+    function showNewBorehole() {
+        document.getElementById('boreholeModeCard').classList.add('hidden');
+        document.getElementById('boreholeCard').classList.remove('hidden');
+    }
+    async function showBoreholeList() {
+        document.getElementById('boreholeModeCard').classList.add('hidden');
+        const listCard = document.getElementById('boreholeListCard');
+        const itemsEl = document.getElementById('boreholeListItems');
+        listCard.classList.remove('hidden');
+        itemsEl.innerHTML = '<div style="color:var(--text-dim);font-size:12px;font-family:IBM Plex Mono,monospace">Loading...</div>';
+
+        try {
+            const response = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes`);
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.detail || 'Failed to load boreholes');
+
+            if (result.boreholes.length === 0) {
+                itemsEl.innerHTML = '<div style="color:var(--text-dim);font-size:12px;font-family:IBM Plex Mono,monospace">No boreholes found for this project.</div>';
+                return;
+            }
+
+            itemsEl.innerHTML = result.boreholes.map(bh => `
+                <button onclick="selectBorehole('${bh.id}','${bh.borehole_no}')"
+                    style="width:100%;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);
+                    border-radius:8px;color:var(--text);font-family:IBM Plex Mono,monospace;font-size:13px;
+                    text-align:left;cursor:pointer;">
+                    <span style="color:var(--accent);font-weight:600">${bh.borehole_no}</span>
+                    <span style="color:var(--text-dim);font-size:11px;margin-left:8px">${bh.date_started || ''} · ${bh.drilling_method || ''}</span>
+                </button>`).join('');
+        } catch (err) {
+            showError('Could not load boreholes: ' + err.message);
+            showBoreholeMode();
+        }
+    }
+    function selectBorehole(id, no) {
+        currentBoreholeId = id;
+        document.getElementById('ctxBorehole').textContent = no;
+        document.getElementById('boreholeListCard').classList.add('hidden');
+        document.getElementById('contextBar').classList.add('visible');
+        document.getElementById('sampleInfoCard').classList.remove('hidden');
+        document.getElementById('recordCard').classList.remove('hidden');
+    }
+
+    function changeProject() {
+        currentProjectId = null;
+        currentBoreholeId = null;
+        document.getElementById('ctxProject').textContent = '—';
+        document.getElementById('ctxBorehole').textContent = '—';
+        document.getElementById('contextBar').classList.remove('visible');
+        document.getElementById('sampleInfoCard').classList.add('hidden');
+        document.getElementById('recordCard').classList.add('hidden');
+        document.getElementById('resultCard').classList.remove('visible');
+        document.getElementById('newBtn').classList.remove('visible');
+        document.getElementById('boreholeModeCard').classList.add('hidden');
+        document.getElementById('boreholeCard').classList.add('hidden');
+        document.getElementById('boreholeListCard').classList.add('hidden');
+        document.getElementById('load_project_no').value = '';
+        const loadBtn = document.getElementById('loadProjectBtn');
+        loadBtn.disabled = false;
+        loadBtn.textContent = 'Load →';
+        const createProjectBtn = document.getElementById('createProjectBtn');
+        createProjectBtn.disabled = false;
+        createProjectBtn.textContent = 'Create Project →';
+        currentSampleData = null;
+        hideError();
+        resetStatus();
+        showProjectMode();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function changeBorehole() {
+        currentBoreholeId = null;
+        document.getElementById('ctxBorehole').textContent = '—';
+        document.getElementById('sampleInfoCard').classList.add('hidden');
+        document.getElementById('recordCard').classList.add('hidden');
+        document.getElementById('resultCard').classList.remove('visible');
+        document.getElementById('newBtn').classList.remove('visible');
+        document.getElementById('contextBar').classList.remove('visible');
+        currentSampleData = null;
+        hideError();
+        resetStatus();
+        showBoreholeMode();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ── Load existing project ──
+    async function loadProject() {
+        const project_no = document.getElementById('load_project_no').value.trim();
+        if (!project_no) { showError('Enter a project number.'); return; }
+        hideError();
+
+        const btn = document.getElementById('loadProjectBtn');
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+
+        try {
+            const response = await fetch(`${API_BASE}/projects?project_no=${encodeURIComponent(project_no)}`);
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.detail || 'Not found');
+
+            currentProjectId = result.project.id;
+            document.getElementById('ctxProject').textContent = result.project.project_no;
+            document.getElementById('loadProjectCard').classList.add('hidden');
+            document.getElementById('boreholeModeCard').classList.remove('hidden');
+
+        } catch (err) {
+            showError('Project error: ' + err.message);
+            btn.disabled = false;
+            btn.textContent = 'Load →';
+        }
+    }
 
     // ── Phase 1: Create Project ──
     async function createProject() {
@@ -535,14 +729,14 @@
                 body: JSON.stringify({ project_no, client, project_name, location })
             });
             const result = await response.json();
-            if (!response.ok || !result.saved) throw new Error(result.error || 'Create failed');
+            if (!response.ok) throw new Error(result.detail || 'Create failed');
 
             currentProjectId = result.project_id;
             document.getElementById('ctxProject').textContent = project_no;
 
             // Advance to borehole phase
             document.getElementById('projectCard').classList.add('hidden');
-            document.getElementById('boreholeCard').classList.remove('hidden');
+            document.getElementById('boreholeModeCard').classList.remove('hidden');
 
         } catch (err) {
             showError('Project error: ' + err.message);
@@ -581,7 +775,7 @@
                 body: JSON.stringify({ borehole_no, tech, drilling_method, od_augers, date_started, driller, weather, drilling_rig, hammer_weight, hammer_drop })
             });
             const result = await response.json();
-            if (!response.ok || !result.saved) throw new Error(result.error || 'Create failed');
+            if (!response.ok) throw new Error(result.detail || 'Create failed');
 
             currentBoreholeId = result.borehole_id;
             document.getElementById('ctxBorehole').textContent = borehole_no;
@@ -661,11 +855,17 @@
 
         try {
             document.getElementById('recordStatus').textContent = 'Transcribing + extracting...';
+            document.getElementById('cancelBtn').classList.add('visible');
+
+            currentAbortController = new AbortController();
 
             const response = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/draft`, {
                 method: 'POST',
-                body: formData
+                body: formData,
+                signal: currentAbortController.signal
             });
+
+            document.getElementById('cancelBtn').classList.remove('visible');
 
             if (!response.ok) throw new Error(await response.text());
 
@@ -674,8 +874,13 @@
             displayResult(data);
 
         } catch (err) {
-            showError('Pipeline error — check server. ' + err.message.slice(0, 100));
-            resetStatus();
+            document.getElementById('cancelBtn').classList.remove('visible');
+            if (err.name === 'AbortError') {
+                resetStatus();
+            } else {
+                showError('Pipeline error — check server. ' + err.message.slice(0, 100));
+                resetStatus();
+            }
         }
     }
 
@@ -777,10 +982,8 @@
                 body: formData
             });
 
-            if (!response.ok) throw new Error('Save failed');
-
             const result = await response.json();
-            if (!result.saved) throw new Error(result.error || 'Save failed');
+            if (!response.ok) throw new Error(result.detail || 'Save failed');
             showToast(`✓ Saved — ID ${result.sample_id}`);
             btn.textContent = '✓ Saved';
             document.getElementById('newBtn').classList.add('visible');
@@ -846,6 +1049,15 @@
             btn.textContent = '↻  Recalculate with edited blow counts';
             btn.disabled = false;
         }
+    }
+
+    function cancelProcessing() {
+        if (currentAbortController) {
+            currentAbortController.abort();
+            currentAbortController = null;
+        }
+        document.getElementById('cancelBtn').classList.remove('visible');
+        resetStatus();
     }
 
     // FIX 4 — Re-record: hides result, keeps depth/pen depths/sample no intact
