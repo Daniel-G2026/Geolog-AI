@@ -82,6 +82,8 @@ WHISPER_CORRECTIONS = {
     "sandy salt": "sandy silt",
     "sandy silk": "sandy silt",
     "clayey silk": "clayey silt",
+    "clay silt": "clayey silt",
+    "clay silts": "clayey silt",
 
     # consistency mishearings
     "very stiff": "very stiff",   # keep — just confirming
