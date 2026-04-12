@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 from whisper import transcribe
 from classification_engine import get_consistency_density, parse_blow_counts
-from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery
+from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery, parse_uscs_symbol, parse_plasticity, parse_gradation
 from models import SampleEntry
 
 
@@ -54,62 +54,45 @@ Return only the formatted description string. No explanation, no extra text."""
 
 ASTM_SYSTEM_PROMPT = """You are a geotechnical soil logger formatting structured field soil data into a report-ready description using ASTM D2488 / USCS-style field logging conventions.
 
-Your job is to produce a clear, professional soil description based on visual-manual field logging data.
+Your job is to produce a clear, professional soil description based on the structured data provided.
 
 IMPORTANT:
-- Use only the data provided.
-- Only check original description for properties tagged with (check description segment)
-- Do not invent missing properties.
+- Use only the structured data provided. Do not invent or infer any missing properties.
 - If a field is null, empty, or not provided, omit it.
-- If consistency/density is provided as a derived field, use it exactly as given.
+- If consistency/density is provided, use it exactly as given.
 - Do not alter wording unless needed for grammar, singular/plural agreement, or proper report formatting.
 
 FORMAT RULES:
-1. Start with the soil classification phrase.
-   - Build the classification from the dominant soil and modifiers/components in USCS style.
-   - Examples:
-     - "silty clay"
-     - "sandy silt"
-     - "sand and gravel"
-     - "gravelly sand"
-2. Uscs symbol (check description segment)
-    - (example inputs:include in description as): "symbol is cl":(CL), "groupname is SM":(SM). possible uscs symbols examples : gw,gp,gm,gc,sw,sp,sm,sc,cl,ml,ol,ch,mh,oh,pt
-    - If a USCS symbol is provided (check description segment for symbol, place it immediately after the soil classification in parentheses in the description.
-    - e.g "Silty clay (SW)
-3. If fill is true, prefix the description with "Fill," unless the structured data already makes the fill nature explicit.
-4. After the main soil classification, include remaining descriptive fields in a natural professional sequence.
-5. Preferred descriptive order after the soil name is:
+1. Start with the soil classification phrase built from soil_name.
+   - Examples: "silty clay", "sandy silt", "sand and gravel"
+2. If uscs_symbol is provided, place it immediately after the soil classification in parentheses.
+   - e.g. "Silty clay (CL)"
+3. If fill is true, prefix the description with "Fill,".
+4. After the main soil classification, include remaining fields in this order:
    - additional quantified components
    - inclusions / foreign materials
    - color
    - moisture
    - consistency or density
-   - plasticity (check description segment) if found include in description
-     - (example inputs:include in description as): "plasticity is low":"low plasticity", "high plasticity":"high plasticity" "little bit plastic":"slightly plastic"
-      
-   - gradation (check description segment) if found include in description
-    -  example inputs: include in description as: "poorly graded":poorly graded, "well graded":well graded
-
-6. Use commas to separate descriptors.
-7. End the description with a period.
-8. Keep the tone concise and engineering-report ready.
-9. Do not use bullet points.
-10. Return only the final formatted description string.
+   - plasticity (if provided)
+   - gradation (if provided)
+5. Use commas to separate descriptors.
+6. End the description with a period.
+7. Keep the tone concise and engineering-report ready.
+8. Do not use bullet points.
+9. Return only the final formatted description string.
 
 SPECIAL HANDLING:
-- Components should read naturally:
-  - "with trace sand"
-  - "some gravel"
-  - "trace organics"
+- Components should read naturally: "with trace sand", "some gravel", "trace organics"
 - Inclusions should be included only if present.
 - Do not repeat the primary soil name as a component.
-- If split_layer is true and multiple soil names are provided, join them using " / " and then continue with shared descriptors.
+- If split_layer is true and multiple soil names are provided, join them using " / " then continue with shared descriptors.
 - If only one soil name is present, do not use a slash.
 
 OUTPUT EXAMPLES:
 - "Silty clay (CL), with trace sand, brown, moist, stiff."
 - "Fill, sandy silt, with gravel and brick fragments, dark brown, moist."
-- "Sand and gravel, wet, dense."
+- "Sand and gravel, wet, dense, poorly graded."
 
 """
 
@@ -268,6 +251,11 @@ def combination(transcript: str, blow_counts: list,
     description_segment = segments.get("description", "")
     fields = extract_description_fields(description_segment)
 
+    # Step 2b — deterministic extraction (these never go to Claude)
+    uscs_symbol = parse_uscs_symbol(description_segment)
+    plasticity  = parse_plasticity(description_segment)
+    gradation   = parse_gradation(description_segment)
+
     # Step 3 — early exit if no soil name found
     depth_m = round(depth_ft * 0.3048, 2)
     pen_depths = []
@@ -341,6 +329,9 @@ def combination(transcript: str, blow_counts: list,
         "fill": fields.get("fill", False),
         "split_layer": isinstance(fields["soil_name"], list),
         "consistency": consistency,
+        "uscs_symbol": uscs_symbol,
+        "plasticity": plasticity,
+        "gradation": gradation,
     }
 
     # Step 10 — Claude formatting prompt produces the Envision description string
@@ -349,12 +340,9 @@ def combination(transcript: str, blow_counts: list,
         max_tokens=1024,
         system=ASTM_SYSTEM_PROMPT,
         messages=[
-            {"role": "user", 
-                   "content": f"""
-                   Structured soil data:{json.dumps(soil_data, indent=2)}
-
-                   original description: {description_segment}"""
-                   }                               
+            {"role": "user",
+                   "content": f"Structured soil data:{json.dumps(soil_data, indent=2)}"
+                   }
             ]
     )
     description = message.content[0].text

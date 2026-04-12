@@ -213,3 +213,93 @@ def parse_recovery(recovery_string: str) -> tuple:
         return (float(num_string),remainder, None)
     except ValueError:
         return (None, remainder,"Recovery not found - manual input required")
+
+
+# ─────────────────────────────────────────────
+# USCS SYMBOL PARSER
+# ─────────────────────────────────────────────
+
+VALID_USCS_SYMBOLS = {
+    "gw","gp","gm","gc","sw","sp","sm","sc","cl","ml","ol","ch","mh","oh","pt"
+}
+
+def parse_uscs_symbol(text: str):
+    """
+    Extracts USCS group symbol from description segment.
+    Returns uppercase symbol string or None.
+
+    Input:  "silty clay symbol is cl dark brown"  → "CL"
+    Input:  "sand groupname is SM"                → "SM"
+    Input:  "silty clay dark brown moist"         → None
+    """
+    if not text:
+        return None
+    patterns = [
+        r'group\s*name\s+is\s+([a-z]{2})',
+        r'group\s*symbol\s+is\s+([a-z]{2})',
+        r'symbol\s+is\s+([a-z]{2})',
+        r'symbol\s+([a-z]{2})\b',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text.lower())
+        if match:
+            sym = match.group(1).lower()
+            if sym in VALID_USCS_SYMBOLS:
+                return sym.upper()
+    return None
+
+
+# ─────────────────────────────────────────────
+# PLASTICITY PARSER
+# ─────────────────────────────────────────────
+
+def parse_plasticity(text: str):
+    """
+    Extracts plasticity descriptor from description segment.
+    Returns standardised string or None.
+
+    Input:  "plasticity is low"    → "low plasticity"
+    Input:  "high plasticity"      → "high plasticity"
+    Input:  "little bit plastic"   → "slightly plastic"
+    Input:  "non plastic"          → "non-plastic"
+    """
+    if not text:
+        return None
+    t = text.lower()
+    mappings = [
+        ("little bit plastic",   "slightly plastic"),
+        ("slightly plastic",     "slightly plastic"),
+        ("plasticity is high",   "high plasticity"),
+        ("plasticity is low",    "low plasticity"),
+        ("plasticity is non",    "non-plastic"),
+        ("high plasticity",      "high plasticity"),
+        ("low plasticity",       "low plasticity"),
+        ("non-plastic",          "non-plastic"),
+        ("non plastic",          "non-plastic"),
+    ]
+    for phrase, result in sorted(mappings, key=lambda x: len(x[0]), reverse=True):
+        if phrase in t:
+            return result
+    return None
+
+
+# ─────────────────────────────────────────────
+# GRADATION PARSER
+# ─────────────────────────────────────────────
+
+def parse_gradation(text: str):
+    """
+    Extracts gradation descriptor from description segment.
+    Returns standardised string or None.
+
+    Input:  "poorly graded"  → "poorly graded"
+    Input:  "well graded"    → "well graded"
+    """
+    if not text:
+        return None
+    t = text.lower()
+    if "poorly graded" in t:
+        return "poorly graded"
+    if "well graded" in t:
+        return "well graded"
+    return None
