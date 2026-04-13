@@ -444,6 +444,12 @@
                 <label>Depth (ft) <span class="req">*</span></label>
                 <input type="number" id="depth_ft" placeholder="5.0" step="0.5" min="0">
             </div>
+            <div id="depthWarning" style="display:none; margin-top:6px; font-size:12px; color:var(--danger); background:rgba(248,113,113,0.08); border:1px solid rgba(248,113,113,0.3); border-radius:6px; padding:8px 10px;">
+                ✕ A sample already exists at this depth in this borehole. Please enter a different depth.
+                <span style="display:block; margin-top:4px;">
+                    <button onclick="document.getElementById('depth_ft').value=''; hideDepthWarning();" style="font-size:11px; padding:2px 8px; cursor:pointer;">Clear</button>
+                </span>
+            </div>
             <div class="input-group">
                 <label>Sample No. <span class="req">*</span></label>
                 <input type="number" id="sample_no" placeholder="1" min="1" value="1">
@@ -534,6 +540,11 @@
                 <label>Blow Counts (comma separated — use 50/3 for refusal over 3")</label>
                 <input type="text" id="editBlowCounts" placeholder="e.g. 12, 17, 19, 23 or 12, 17, 50/3">
             </div>
+
+            <div class="edit-field">
+                <label>Recovery (inches)</label>
+                <input type="number" id="editRecovery" placeholder="e.g. 14.5" step="0.5" min="0" max="24">
+            </div>
         </div>
 
         <!-- Transcript for reference -->
@@ -548,7 +559,8 @@
             without clearing depth/pen depths/sample number inputs.
         -->
         <button class="rerecord-btn" onclick="reRecord()">🎤 &nbsp;Re-record</button>
-        <button class="rerecord-btn" id="recalcBtn" onclick="recalculate()" style="color: var(--warn); border-color: var(--warn);">↻ &nbsp;Recalculate with edited blow counts</button>
+        <button class="rerecord-btn" id="recalcBtn" onclick="recalculate()" style="color: var(--warn); border-color: var(--warn);">↻ &nbsp;Recalculate</button>
+        <div id="recalcHint" style="display:none; font-size:12px; color:var(--warn); margin-top:4px;">⚠ Changes detected — click ↻ Recalculate to update</div>
 
         <button class="confirm-btn" id="confirmBtn" onclick="confirmSample()">
             ✓ &nbsp;Confirm & Save
@@ -573,6 +585,10 @@
     let currentBoreholeId = null;
     let currentAbortController = null;
 
+    // Snapshots — set in displayResult(), used by recalculate() to detect what changed
+    let originalBlowCounts = '';
+    let originalRecovery   = '';
+
     // ── Navigation helpers ──
     function showProjectMode() {
         document.getElementById('projectModeCard').classList.remove('hidden');
@@ -589,11 +605,14 @@
         document.getElementById('loadProjectCard').classList.remove('hidden');
     }
     function showBoreholeMode() {
+        hideError();
+        hideDepthWarning();
         document.getElementById('boreholeModeCard').classList.remove('hidden');
         document.getElementById('boreholeCard').classList.add('hidden');
         document.getElementById('boreholeListCard').classList.add('hidden');
     }
     function showNewBorehole() {
+        hideError();
         document.getElementById('boreholeModeCard').classList.add('hidden');
         document.getElementById('boreholeCard').classList.remove('hidden');
     }
@@ -637,6 +656,8 @@
     }
 
     function changeProject() {
+        hideError();
+        hideDepthWarning();
         currentProjectId = null;
         currentBoreholeId = null;
         document.getElementById('ctxProject').textContent = '—';
@@ -664,6 +685,8 @@
     }
 
     function changeBorehole() {
+        hideError();
+        hideDepthWarning();
         currentBoreholeId = null;
         document.getElementById('ctxBorehole').textContent = '—';
         document.getElementById('sampleInfoCard').classList.add('hidden');
@@ -793,15 +816,18 @@
         }
     }
 
-    function toggleRecord() {
+    async function toggleRecord() {
         if (isRecording) return;
-        startRecording();
+        await startRecording();
     }
 
     async function startRecording() {
         const depth = document.getElementById('depth_ft').value;
 
         if (!depth) { showError('Please enter depth before recording.'); return; }
+        hideDepthWarning();
+        const duplicate = await checkDepth(depth);
+        if (duplicate) return;
         hideError();
 
         try {
@@ -920,12 +946,35 @@
         // Tech can correct any field before confirming
         document.getElementById('editDescription').value = data.description || '';
         document.getElementById('editComments').value = data.comments || '';
-        document.getElementById('editBlowCounts').value =
-            data.blow_counts
-        ? data.blow_counts.map((blow, i) =>
-            data.pen_depths[i] < 6 ? `${blow}/${data.pen_depths[i]}` : `${blow}`
-          ).join(', ')
-        : '';
+        const blowStr = data.blow_counts
+            ? data.blow_counts.map((blow, i) =>
+                data.pen_depths[i] < 6 ? `${blow}/${data.pen_depths[i]}` : `${blow}`
+              ).join(', ')
+            : '';
+        document.getElementById('editBlowCounts').value = blowStr;
+        document.getElementById('editRecovery').value = data.recovery_inches != null ? data.recovery_inches : '';
+
+        // Snapshot originals so recalculate() knows what actually changed
+        originalBlowCounts = blowStr;
+        originalRecovery   = document.getElementById('editRecovery').value;
+
+        // Normalize blow counts string — strips spaces around commas so "12, 17" === "12,17"
+        const normalizeBlows = str => str.split(',').map(t => t.trim()).filter(t => t).join(',');
+
+        // Show hint whenever a field diverges from its snapshot; hide when restored
+        const updateRecalcHint = () => {
+            const blowChanged     = normalizeBlows(document.getElementById('editBlowCounts').value) !== normalizeBlows(originalBlowCounts);
+            const recoveryChanged = document.getElementById('editRecovery').value.trim()             !== originalRecovery;
+            const hint = document.getElementById('recalcHint');
+            if (blowChanged || recoveryChanged) {
+                hint.style.display = 'block';
+                hideError();
+            } else {
+                hint.style.display = 'none';
+            }
+        };
+        document.getElementById('editBlowCounts').oninput = updateRecalcHint;
+        document.getElementById('editRecovery').oninput   = updateRecalcHint;
 
         // Transcript
         document.getElementById('transcriptText').textContent = data.raw_transcript || '';
@@ -1002,51 +1051,121 @@
     async function recalculate() {
         if (!currentSampleData) return;
 
-        const rawBlows = document.getElementById('editBlowCounts').value
-            .split(',').map(v => v.trim()).filter(v => v.length > 0);
+        const currentBlowStr    = document.getElementById('editBlowCounts').value.trim();
+        const currentRecoveryStr = document.getElementById('editRecovery').value.trim();
 
-        const parsedBlowCounts = [];
-        const parsedPenDepths = [];
-        rawBlows.forEach(token => {
-            if (token.includes('/')) {
-                const parts = token.split('/');
-                parsedBlowCounts.push(parseInt(parts[0]));
-                parsedPenDepths.push(parseFloat(parts[1]));
-            } else {
-                parsedBlowCounts.push(parseInt(token));
-                parsedPenDepths.push(6.0);
-            }
-        });
+        const normalizeBlows  = str => str.split(',').map(t => t.trim()).filter(t => t).join(',');
+        const blowsChanged    = normalizeBlows(currentBlowStr) !== normalizeBlows(originalBlowCounts);
+        const recoveryChanged = currentRecoveryStr !== originalRecovery;
 
-        const updatedData = {
-            ...currentSampleData,
-            blow_counts: parsedBlowCounts,
-            pen_depths: parsedPenDepths
-        };
+        // Nothing changed — bail early
+        if (!blowsChanged && !recoveryChanged) {
+            showError('No changes detected — edit blow counts or recovery before recalculating.');
+            return;
+        }
+
+        hideError();
+        document.getElementById('recalcHint').style.display = 'none';
 
         const btn = document.getElementById('recalcBtn');
         btn.textContent = '↻  Recalculating...';
         btn.disabled = true;
 
         try {
-            const formData = new FormData();
-            formData.append('sample_data', JSON.stringify(updatedData));
+            // ── Branch 1: blow counts changed (full pipeline, recovery override after if needed) ──
+            if (blowsChanged) {
+                const rawBlows = currentBlowStr.split(',').map(v => v.trim()).filter(v => v.length > 0);
+                const parsedBlowCounts = [];
+                const parsedPenDepths  = [];
+                rawBlows.forEach(token => {
+                    if (token.includes('/')) {
+                        const parts = token.split('/');
+                        parsedBlowCounts.push(parseInt(parts[0]));
+                        parsedPenDepths.push(parseFloat(parts[1]));
+                    } else {
+                        parsedBlowCounts.push(parseInt(token));
+                        parsedPenDepths.push(6.0);
+                    }
+                });
 
-            const response = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/recalculate`, {
-                method: 'POST',
-                body: formData
-            });
+                const updatedData = {
+                    ...currentSampleData,
+                    blow_counts: parsedBlowCounts,
+                    pen_depths:  parsedPenDepths
+                };
 
-            const data = await response.json();
-            if (data.error) throw new Error(data.error);
+                const formData = new FormData();
+                formData.append('sample_data', JSON.stringify(updatedData));
 
-            currentSampleData = data;
-            displayResult(data);
+                const response = await fetch(
+                    `${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/recalculate`,
+                    { method: 'POST', body: formData }
+                );
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Recalculate failed');
+
+                // If recovery was also edited, run the lightweight recovery endpoint on top
+                if (recoveryChanged) {
+                    const newRecovery = parseFloat(currentRecoveryStr);
+                    if (!isNaN(newRecovery)) {
+                        const recoveryPayload = new FormData();
+                        recoveryPayload.append('sample_data', JSON.stringify({
+                            pen_depths:      data.pen_depths,
+                            recovery_inches: newRecovery
+                        }));
+                        const rRes = await fetch(
+                            `${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/recalculate_recovery`,
+                            { method: 'POST', body: recoveryPayload }
+                        );
+                        const rData = await rRes.json();
+                        if (!rRes.ok) throw new Error(rData.detail || 'Recovery recalculate failed');
+                        data.recovery_inches = rData.recovery_inches;
+                        data.recovery_mm     = rData.recovery_mm;
+                        if (rData.flag) {
+                            data.flags = [...(data.flags || []), rData.flag];
+                        } else {
+                            data.flags = (data.flags || []).filter(f => !f.startsWith('Recovery exceeds'));
+                        }
+                    }
+                }
+
+                currentSampleData = data;
+                displayResult(data);
+
+            // ── Branch 2: recovery only changed (lightweight endpoint, no Claude) ──
+            } else {
+                const newRecovery = parseFloat(currentRecoveryStr);
+                if (isNaN(newRecovery)) throw new Error('Invalid recovery value.');
+
+                const formData = new FormData();
+                formData.append('sample_data', JSON.stringify({
+                    pen_depths:      currentSampleData.pen_depths,
+                    recovery_inches: newRecovery
+                }));
+
+                const response = await fetch(
+                    `${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/recalculate_recovery`,
+                    { method: 'POST', body: formData }
+                );
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Recovery recalculate failed');
+
+                // Patch only the recovery fields — everything else unchanged
+                currentSampleData = {
+                    ...currentSampleData,
+                    recovery_inches: data.recovery_inches,
+                    recovery_mm:     data.recovery_mm,
+                    flags: data.flag
+                        ? [...(currentSampleData.flags || []).filter(f => !f.startsWith('Recovery exceeds')), data.flag]
+                        : (currentSampleData.flags || []).filter(f => !f.startsWith('Recovery exceeds'))
+                };
+                displayResult(currentSampleData);
+            }
 
         } catch (err) {
             showError('Recalculate failed: ' + err.message);
         } finally {
-            btn.textContent = '↻  Recalculate with edited blow counts';
+            btn.textContent = '↻  Recalculate';
             btn.disabled = false;
         }
     }
@@ -1077,9 +1196,29 @@
         document.getElementById('confirmBtn').disabled = false;
         document.getElementById('confirmBtn').textContent = '✓  Confirm & Save';
         document.getElementById('depth_ft').value = '';
+        hideDepthWarning();
         hideError();
         resetStatus();
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function checkDepth(depth) {
+        if (!depth || !currentProjectId || !currentBoreholeId) return false;
+        try {
+            const res = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/check?depth_ft=${depth}`);
+            const data = await res.json();
+            if (data.exists) {
+                document.getElementById('depthWarning').style.display = 'block';
+                return true;
+            }
+            return false;
+        } catch (_) {
+            return false; // silently fail — don't block recording on network error
+        }
+    }
+
+    function hideDepthWarning() {
+        document.getElementById('depthWarning').style.display = 'none';
     }
 
     function showError(msg) {
