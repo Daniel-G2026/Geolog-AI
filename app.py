@@ -37,7 +37,7 @@ class BoreholeCreate(BaseModel):
     total_sheets: int = 1
     # ── Optional header fields ──                  
     weather: Optional[str] = None                
-    drilling_rig: str = ""
+    drilling_rig: Optional[str] = None
     hammer_weight: Optional[str] = None   # lbs
     hammer_drop: Optional[str] = None     # inches
     water_level_depth: Optional[float] = None   # m
@@ -57,9 +57,9 @@ def check_existing(table: str, column: str, value, select: str = "id"):
         return {"found": False, "data": None}
     return {"found": True, "data": result.data[0]}
 
-def get_project(project_id: str):
+def get_project(project_id: int):
     try:
-        r = check_existing("projects", "id", project_id, "id, project_no")
+        r = check_existing("projects", "id", project_id, "id")
         if not r["found"]:
             raise HTTPException(status_code=404, detail="Project not found")
         return r["data"]
@@ -68,12 +68,12 @@ def get_project(project_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def get_borehole(project_id: str, borehole_id: str):
+def get_borehole(project_id: int, borehole_id: int):
     try:
         result = (
             supabase_client
             .table("boreholes")
-            .select("id, borehole_no, project_no")
+            .select("id, borehole_no")
             .eq("id", borehole_id)
             .eq("project_id", project_id)
             .limit(1)
@@ -121,7 +121,7 @@ async def find_project(project_no: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/projects/{project_id}/boreholes")
-async def list_boreholes(project_id: str):
+async def list_boreholes(project_id: int):
     try:
         get_project(project_id)
         result = supabase_client.table("boreholes") \
@@ -152,9 +152,9 @@ async def create_project(data: ProjectCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/projects/{project_id}/boreholes")
-async def create_borehole(project_id: str, data: BoreholeCreate):
+async def create_borehole(project_id: int, data: BoreholeCreate):
     try:
-        project = get_project(project_id)
+
 
         duplicate = supabase_client.table("boreholes") \
             .select("id") \
@@ -166,8 +166,9 @@ async def create_borehole(project_id: str, data: BoreholeCreate):
             raise HTTPException(status_code=400, detail=f"Borehole '{data.borehole_no}' already exists in this project.")
 
         dict_data = data.model_dump()
+        \
         dict_data["project_id"] = project_id
-        dict_data["project_no"] = project["project_no"]
+        print(f"DEBUG keys being inserted: {list(dict_data.keys())}")
         result = supabase_client.table("boreholes").insert(dict_data).execute()
         if not result.data:
             raise HTTPException(status_code=500, detail="Insert failed")
@@ -185,8 +186,8 @@ async def create_borehole(project_id: str, data: BoreholeCreate):
 @app.post("/projects/{project_id}/boreholes/{borehole_id}/samples/draft")
 async def log_sample(
     request: Request,
-    project_id: str,
-    borehole_id: str,
+    project_id: int,
+    borehole_id: int,
     audio: UploadFile = File(...),
     sample_no: int = Form(...),
     depth_ft: float = Form(...)
@@ -222,7 +223,7 @@ async def log_sample(
 
 
 @app.post("/projects/{project_id}/boreholes/{borehole_id}/samples/recalculate")
-async def recalculate_sample(project_id: str, borehole_id: str, sample_data: str = Form(...)):
+async def recalculate_sample(project_id: int, borehole_id: int, sample_data: str = Form(...)):
     try:
         from pipeline import combination
         data = json.loads(sample_data)
@@ -243,12 +244,12 @@ async def recalculate_sample(project_id: str, borehole_id: str, sample_data: str
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/projects/{project_id}/boreholes/{borehole_id}/samples/check")
-async def check_sample_at_depth(project_id: str, borehole_id: str, depth_ft: float = Query(...)):
+async def check_sample_at_depth(project_id: int, borehole_id: int, depth_ft: float = Query(...)):
     try:
         result = supabase_client.table("samples") \
             .select("id, sample_no, depth_ft") \
-            .eq("project_id", int(project_id)) \
-            .eq("borehole_id", int(borehole_id)) \
+            .eq("project_id", project_id) \
+            .eq("borehole_id", borehole_id) \
             .eq("depth_ft", depth_ft) \
             .execute()
         if result.data:
@@ -261,7 +262,7 @@ async def check_sample_at_depth(project_id: str, borehole_id: str, depth_ft: flo
 
 
 @app.post("/projects/{project_id}/boreholes/{borehole_id}/samples/recalculate_recovery")
-async def recalculate_recovery(project_id: str, borehole_id: str, sample_data: str = Form(...)):
+async def recalculate_recovery(project_id: int, borehole_id: int, sample_data: str = Form(...)):
     try:
         data = json.loads(sample_data)
         pen_depths = data["pen_depths"]
@@ -283,18 +284,18 @@ async def recalculate_recovery(project_id: str, borehole_id: str, sample_data: s
 
 
 @app.post("/projects/{project_id}/boreholes/{borehole_id}/samples/confirmed")
-async def confirm_sample(project_id: str, borehole_id: str, sample_data: str = Form(...)):
+async def confirm_sample(project_id: int, borehole_id: int, sample_data: str = Form(...)):
     try:
-        borehole = get_borehole(project_id, borehole_id)
-
+        #saftey check to see if borehole exists
+        _ = get_borehole(project_id, borehole_id)
         data = json.loads(sample_data)
 
         # Guard against duplicate depth before insert
         depth_ft = data.get("depth_ft")
         existing = supabase_client.table("samples") \
             .select("id") \
-            .eq("project_id", int(project_id)) \
-            .eq("borehole_id", int(borehole_id)) \
+            .eq("project_id", project_id) \
+            .eq("borehole_id", borehole_id) \
             .eq("depth_ft", depth_ft) \
             .limit(1) \
             .execute()
@@ -304,6 +305,7 @@ async def confirm_sample(project_id: str, borehole_id: str, sample_data: str = F
         # Recalculate SPT fields from submitted blow counts
         blow_counts = data["blow_counts"]
         pen_depths = data["pen_depths"]
+        #recalculate blowcounts to ensure blow counts are always consistent in DB. In case the edited values drifterd from the recalculate endpoint
         if blow_counts:
             spt = parse_blow_counts(blow_counts, pen_depths)
             data["n_value"] = spt["n_value"]
@@ -315,8 +317,6 @@ async def confirm_sample(project_id: str, borehole_id: str, sample_data: str = F
         data["flags"] = json.dumps(data["flags"])
         data["project_id"] = project_id
         data["borehole_id"] = borehole_id
-        data["project_no"] = borehole["project_no"]
-        data["borehole_no"] = borehole["borehole_no"]
 
         result = supabase_client.table("samples").insert(data).execute()
         if not result.data:

@@ -30,27 +30,6 @@ client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 # Claude must use every provided value exactly as given.
 # ─────────────────────────────────────────────
 
-ENVISION_SYSTEM_PROMPT = """You are a geotechnical logger for Envision Consultants Ltd.
-Your job is to format the provided structured soil data into a report-ready description
-that exactly matches Envision's logging style.
-Do NOT determine or infer consistency or density — it is already provided to you.
-Use it exactly as given.
-
-RULES:
-1. Primary soil name in ALL CAPS, followed by a colon
-2. Secondary components ordered most to least: some → trace to some → trace
-3. Field order: PRIMARY NAME: components, inclusions, color, moisture, consistency.
-4. Color: use exactly as provided
-5. Moisture: use exactly as provided
-6. Consistency/density: use exactly as provided — do not change it
-7. FILL prefix when fill is true: start with "FILL:" then list components,
-   inclusions, color, moisture, consistency. Do NOT include the soil_name
-   as a separate capitalized header. Do NOT add a colon after the soil type.
-8. Transitional soils: use TO between names
-9. End every description with a period
-10. If split_layer is true: return each soil name from the list following the soil name format in rule 1, seperating them with a / then continue to describe the rest of the characteristicsFormat: "- [SOIL NAME/SOIL NAME]: color, moisture, consistency." if only one soil name then no need for the  /
-
-Return only the formatted description string. No explanation, no extra text."""
 
 ASTM_SYSTEM_PROMPT = """You are a geotechnical soil logger formatting structured field soil data into a report-ready description using ASTM D2488 / USCS-style field logging conventions.
 

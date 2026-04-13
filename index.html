@@ -723,6 +723,8 @@
 
         } catch (err) {
             showError('Project error: ' + err.message);
+            
+        } finally{
             btn.disabled = false;
             btn.textContent = 'Load →';
         }
@@ -763,6 +765,8 @@
 
         } catch (err) {
             showError('Project error: ' + err.message);
+            
+        } finally{
             btn.disabled = false;
             btn.textContent = 'Create Project →';
         }
@@ -803,6 +807,9 @@
             currentBoreholeId = result.borehole_id;
             document.getElementById('ctxBorehole').textContent = borehole_no;
 
+            // Clear only the identifier — other fields stay for the next borehole on this site
+            document.getElementById('borehole_no').value = '';
+
             // Advance to sample recording phase
             document.getElementById('boreholeCard').classList.add('hidden');
             document.getElementById('contextBar').classList.add('visible');
@@ -811,9 +818,10 @@
 
         } catch (err) {
             showError('Borehole error: ' + err.message);
+        } finally{
             btn.disabled = false;
             btn.textContent = 'Start Borehole →';
-        }
+        }    
     }
 
     async function toggleRecord() {

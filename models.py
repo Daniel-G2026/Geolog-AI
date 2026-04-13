@@ -85,6 +85,8 @@ class BoreholeLog:
             if sample.sample_no == sample_no:
                 return sample
         return None
+
+@dataclass
 class Project:
      # ── Required header fields ──
     project_no: str                 # project reference number e.g. "25-1021"
@@ -102,7 +104,7 @@ class Project:
     
     def get_borehole(self,borehole_no):
         for borehole in self.boreholes:
-            if borehole.borehole_no != borehole_no:
-                return None
-            else:
+            if borehole.borehole_no == borehole_no:
                 return borehole
+        
+        return None

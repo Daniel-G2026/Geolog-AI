@@ -184,7 +184,7 @@ def parse_recovery(recovery_string: str) -> tuple:
     Input:  "12.5"  → (12.5, None)
     Input:  "18"    → (18.0, None)
     Input:  ""      → (None, "Recovery not found - manual input required")
-    Input:  "full"  → (None, "Recovery not found - manual input required")
+    Input:  "full"  → (None, "", "Recovery not found - manual input required")
     """
     if not recovery_string:
         return (None,"", "Recovery not found - manual input required")
