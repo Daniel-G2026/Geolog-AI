@@ -92,6 +92,50 @@ WHISPER_CORRECTIONS = {
     "heart": "hard",
 }
 
+import re
+
+# ─────────────────────────────────────────────
+# SOIL NAME NORMALIZER
+# Handles Whisper's creative punctuation and pluralization of compound soil names.
+# Catches variants a static dictionary can't anticipate.
+# ─────────────────────────────────────────────
+
+def normalize_soil_names(text: str) -> str:
+    """
+    Collapses Whisper's variations on compound soil names back to canonical form.
+    Examples of what this catches:
+      "clay silt"       → "clayey silt"
+      "clay, silt"      → "clayey silt"
+      "clay silts"      → "clayey silt"
+      "clayy silt"      → "clayey silt"
+      "clayey silts"    → "clayey silt"
+      "silt clay"       → "silty clay"
+      "silty clays"     → "silty clay"
+      "sandy silts"     → "sandy silt"
+      "silty sands"     → "silty sand"
+      "sand and silts"  → "sand and silt"
+      "sand and gravels"→ "sand and gravel"
+    """
+    # Order matters — more specific multi-word patterns first
+    text = re.sub(r'\bsand\s*and\s*silt[s]?\b',   'sand and silt',   text, flags=re.IGNORECASE)
+    text = re.sub(r'\bsand\s*and\s*gravel[s]?\b', 'sand and gravel', text, flags=re.IGNORECASE)
+
+    # "clay[y]? [,]? silt[s]?" → "clayey silt"
+    text = re.sub(r'\bclay[y]?\s*[,]?\s*silt[s]?\b', 'clayey silt', text, flags=re.IGNORECASE)
+    # "silt[y]? [,]? clay[s]?" → "silty clay"
+    text = re.sub(r'\bsilt[y]?\s*[,]?\s*clay[s]?\b', 'silty clay', text, flags=re.IGNORECASE)
+
+    # Pluralized simple compounds
+    text = re.sub(r'\bsandy\s*silt[s]?\b',  'sandy silt',  text, flags=re.IGNORECASE)
+    text = re.sub(r'\bsilty\s*sand[s]?\b',  'silty sand',  text, flags=re.IGNORECASE)
+
+    # Pluralized singletons (careful — only when whole word)
+    text = re.sub(r'\bsilts\b',   'silt',   text, flags=re.IGNORECASE)
+    text = re.sub(r'\bclays\b',   'clay',   text, flags=re.IGNORECASE)
+    text = re.sub(r'\bsands\b',   'sand',   text, flags=re.IGNORECASE)
+    text = re.sub(r'\bgravels\b', 'gravel', text, flags=re.IGNORECASE)
+
+    return text
 
 def correct_transcript(transcript: str) -> str:
     """
@@ -105,7 +149,9 @@ def correct_transcript(transcript: str) -> str:
     corrected = transcript.lower()
     for mistake, correction in WHISPER_CORRECTIONS.items():
         corrected = corrected.replace(mistake, correction)
-    return corrected
+
+    normalized_transcript = normalize_soil_names(corrected)
+    return normalized_transcript
 
 
 def transcribe(audio_file_path: str) -> str:
@@ -126,6 +172,4 @@ def transcribe(audio_file_path: str) -> str:
             prompt=WHISPER_PROMPT   # prime Whisper with geotechnical vocabulary
         )
 
-    # Apply post-processing corrections for known mishearings
-    corrected = correct_transcript(transcript.text)
-    return corrected
+    return transcript.text 

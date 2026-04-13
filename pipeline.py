@@ -10,9 +10,9 @@ import anthropic
 from math import isclose
 from dotenv import load_dotenv
 from pathlib import Path
-from whisper import transcribe
+from whisper import transcribe, correct_transcript
 from classification_engine import get_consistency_density, parse_blow_counts
-from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery, parse_uscs_symbol, parse_plasticity, parse_gradation
+from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery, parse_uscs_symbol
 from models import SampleEntry
 
 
@@ -96,7 +96,8 @@ Fields to extract:
 - moisture: moisture condition (e.g. "moist", "wet", "very moist to wet", "dry")
 - inclusions: list of ALL inclusions or foreign objects found in the sample
 - fill: true if "fill" appears as a soil type descriptor, false otherwise
-
+- plasticity: one of ["non-plastic", "slightly plastic", "low plasticity", "high plasticity"] or null if not mentioned
+- gradation: one of ["poorly graded", "well graded"] or null if not mentioned
 
 Rules:
 - soil_name must NOT include trace/some quantifiers
@@ -105,6 +106,15 @@ Rules:
 - inclusions: standard geological terms (rock fragments, oxidation,concrete fragments,cobbles,boulders) go in as-is.
   Organic matter of any kind (roots, branches, organics, rootlets) → "organic inclusions"
   Unusual foreign objects (coin, brick fragment, glass, metal debris) → include exactly as found as "foreign object" e.g "glass"
+  - plasticity: map any phrasing about plasticity to one of the four enum values.
+    "plasticity is low", "low plasticity", "plasticity that's low", "has a low plasticity" → "low plasticity"
+    "plasticity is high", "high plasticity" → "high plasticity"
+    "non plastic", "non-plastic", "not plastic" → "non-plastic"
+    "slightly plastic", "little bit plastic", "barely plastic" → "slightly plastic"
+ - gradation: map any phrasing about gradation to one of the two enum values.
+    "poorly graded", "badly graded" → "poorly graded"
+    "well graded", "well-graded" → "well graded"
+    If gradation is not mentioned, return null.
 - Use null for missing strings
 - Use empty list [] for missing lists
 - fill is always true or false, never null
@@ -140,7 +150,9 @@ def extract_description_fields(description_segment: str) -> dict:
             "color": None,
             "moisture": None,
             "inclusions": [],
-            "fill": False
+            "fill": False,
+            "plasticity": None,    
+            "gradation": None,
         }
 
     message = client.messages.create(
@@ -163,6 +175,8 @@ def extract_description_fields(description_segment: str) -> dict:
             "moisture": None,
             "inclusions": [],
             "fill": False,
+            "plasticity": None,   
+            "gradation": None,
             "parse_error": "Claude extraction failed — manual input required"
         }
 
@@ -222,6 +236,11 @@ def combination(transcript: str, blow_counts: list,
     - depth_ft:     depth in feet as logged on site
     - sample_type:  "SS" = spoon sample (default), "RC" = rock core (future)
     """
+     # Step 0 — normalize the transcript (applies dictionary corrections
+    # and soil-name regex normalizer). Runs on every path into the pipeline.
+    raw_transcript = transcript
+    transcript = correct_transcript(transcript)
+    
 
     # Step 1 — segment the transcript by keywords
     segments = segment_transcript(transcript)
@@ -232,8 +251,6 @@ def combination(transcript: str, blow_counts: list,
 
     # Step 2b — deterministic extraction (these never go to Claude)
     uscs_symbol = parse_uscs_symbol(description_segment)
-    plasticity  = parse_plasticity(description_segment)
-    gradation   = parse_gradation(description_segment)
 
     # Step 3 — early exit if no soil name found
     depth_m = round(depth_ft * 0.3048, 2)
@@ -309,8 +326,8 @@ def combination(transcript: str, blow_counts: list,
         "split_layer": isinstance(fields["soil_name"], list),
         "consistency": consistency,
         "uscs_symbol": uscs_symbol,
-        "plasticity": plasticity,
-        "gradation": gradation,
+        "plasticity": fields.get("plasticity"),
+        "gradation": fields.get("gradation"),
     }
 
     # Step 10 — Claude formatting prompt produces the Envision description string

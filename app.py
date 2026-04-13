@@ -166,7 +166,6 @@ async def create_borehole(project_id: int, data: BoreholeCreate):
             raise HTTPException(status_code=400, detail=f"Borehole '{data.borehole_no}' already exists in this project.")
 
         dict_data = data.model_dump()
-        \
         dict_data["project_id"] = project_id
         print(f"DEBUG keys being inserted: {list(dict_data.keys())}")
         result = supabase_client.table("boreholes").insert(dict_data).execute()
