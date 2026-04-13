@@ -5,7 +5,7 @@
 import os
 import json
 from dataclasses import asdict
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pipeline import run_from_voice
 from classification_engine import parse_blow_counts
@@ -156,6 +156,15 @@ async def create_borehole(project_id: str, data: BoreholeCreate):
     try:
         project = get_project(project_id)
 
+        duplicate = supabase_client.table("boreholes") \
+            .select("id") \
+            .eq("project_id", project_id) \
+            .eq("borehole_no", data.borehole_no) \
+            .limit(1) \
+            .execute()
+        if duplicate.data:
+            raise HTTPException(status_code=400, detail=f"Borehole '{data.borehole_no}' already exists in this project.")
+
         dict_data = data.model_dump()
         dict_data["project_id"] = project_id
         dict_data["project_no"] = project["project_no"]
@@ -167,7 +176,10 @@ async def create_borehole(project_id: str, data: BoreholeCreate):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        err = str(e)
+        if "23505" in err or "duplicate key" in err.lower():
+            raise HTTPException(status_code=400, detail=f"Borehole '{data.borehole_no}' already exists in this project.")
+        raise HTTPException(status_code=500, detail=err)
 
 # ── Main logging endpoint ──
 @app.post("/projects/{project_id}/boreholes/{borehole_id}/samples/draft")
@@ -230,12 +242,64 @@ async def recalculate_sample(project_id: str, borehole_id: str, sample_data: str
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/projects/{project_id}/boreholes/{borehole_id}/samples/check")
+async def check_sample_at_depth(project_id: str, borehole_id: str, depth_ft: float = Query(...)):
+    try:
+        result = supabase_client.table("samples") \
+            .select("id, sample_no, depth_ft") \
+            .eq("project_id", int(project_id)) \
+            .eq("borehole_id", int(borehole_id)) \
+            .eq("depth_ft", depth_ft) \
+            .execute()
+        if result.data:
+            return {"exists": True, "count": len(result.data)}
+        return {"exists": False}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/projects/{project_id}/boreholes/{borehole_id}/samples/recalculate_recovery")
+async def recalculate_recovery(project_id: str, borehole_id: str, sample_data: str = Form(...)):
+    try:
+        data = json.loads(sample_data)
+        pen_depths = data["pen_depths"]
+        total_penetration = sum(pen_depths)
+        new_recovery = data["recovery_inches"]
+
+        if new_recovery <= total_penetration:
+            return {"recovery_inches": new_recovery, "recovery_mm": round(new_recovery * 25.4), "flag": None}
+        else:
+            return {
+                "recovery_inches": new_recovery,
+                "recovery_mm": round(new_recovery * 25.4),
+                "flag": f"Recovery exceeds total penetration ({new_recovery}\" recovery vs {total_penetration}\" penetrated) — manual review required"
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/projects/{project_id}/boreholes/{borehole_id}/samples/confirmed")
 async def confirm_sample(project_id: str, borehole_id: str, sample_data: str = Form(...)):
     try:
         borehole = get_borehole(project_id, borehole_id)
 
         data = json.loads(sample_data)
+
+        # Guard against duplicate depth before insert
+        depth_ft = data.get("depth_ft")
+        existing = supabase_client.table("samples") \
+            .select("id") \
+            .eq("project_id", int(project_id)) \
+            .eq("borehole_id", int(borehole_id)) \
+            .eq("depth_ft", depth_ft) \
+            .limit(1) \
+            .execute()
+        if existing.data:
+            raise HTTPException(status_code=400, detail=f"A sample at depth {depth_ft} ft already exists in this borehole.")
 
         # Recalculate SPT fields from submitted blow counts
         blow_counts = data["blow_counts"]
