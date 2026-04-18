@@ -41,6 +41,13 @@ def get_consistency_density(soil_name, n_value: int):
         cohesion_found = False   # tracks if we already got a cohesionless term
         cohesive_found = False   # tracks if we already got a cohesive term
         soils_lower = [name.lower() for name in soil_name]
+        # Strip 'till' suffix — it's a depositional descriptor, not a soil type.
+        # Without this, "silty clay till" would fail the COHESIVE_TERMS
+        # membership check below and the list would be misclassified.
+        soils_lower = [
+            s.replace("till", "").strip() if s.endswith("till") else s
+            for s in soils_lower
+        ]
         consistencies = []
         consistency_return = ""
 
