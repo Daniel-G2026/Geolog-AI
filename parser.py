@@ -132,7 +132,7 @@ def parse_depth_range(layer_slice: str) -> tuple:
     Input:  "silty clay brown moist"  — no range stated
     Output: (None, None, "silty clay brown moist")
     """
-    match = re.search( r'(\d+\.?\d*)\s*(?:to|-)\s*(\d+\.?\d*)\s*(?:inches?)', layer_slice)
+    match = re.search( r'(\d+\.?\d*)\s*(?:to|-)\s*(\d+\.?\d*)\s*(?:inches|"?)', layer_slice)
     if not match:
         return (None, None, layer_slice)
     

@@ -39,7 +39,7 @@ WHISPER_PROMPT = (
     "uscs/group symbol - CL, ML, SM,SP, GP, GM"
     "group name"
     "Dealing with numbers:"
-    "All numbers should not be spelled and should be transcribed as numbers e.g fifty for four should be 50 for 4 etc",
+    "All numbers should not be spelled and should be transcribed as numbers e.g fifty for four should be 50 for 4 etc"
     "When listing a set of number separate with commas, when a range of numbers is said e.g 0 to 10 transcribe as 0-10"
     "All inch measurements should be transcribed as 'inches' not as the symbol"
     

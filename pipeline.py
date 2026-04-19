@@ -237,7 +237,7 @@ def parse_split_layers(description_segment: str) -> list:
     for s in slices:
         start, end, remainder = parse_depth_range(s)
         fields = extract_description_fields(remainder)
-        fields["uscs_symbol"] = parse_uscs_symbol(s)
+        fields["uscs_symbol"] = parse_uscs_symbol(remainder)
         fields["depth_start"] = start
         fields["depth_end"] = end
         layer_fields.append(fields)
