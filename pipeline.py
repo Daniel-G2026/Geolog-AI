@@ -12,8 +12,9 @@ from dotenv import load_dotenv
 from pathlib import Path
 from whisper import transcribe, correct_transcript
 from classification_engine import get_consistency_density, parse_blow_counts
-from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery, parse_uscs_symbol
+from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery, parse_uscs_symbol, is_split_layer, parse_depth_range
 from models import SampleEntry
+import re
 
 
 # Load .env file from the same directory as this script.
@@ -205,6 +206,64 @@ def sort_components(components: list) -> list:
 
 
 # ─────────────────────────────────────────────
+# Parse split layers
+# ─────────────────────────────────────────────
+def parse_split_layers(description_segment: str) -> list:
+    """
+    Detects and slices layer sub-keywords from the description segment.
+    Returns a list of dicts, one per layer, with extracted fields and
+    shared field inheritance applied bidirectionally.
+    """
+    text = description_segment.lower()
+    
+    # Find all "layer N" occurrences and their positions
+    
+    matches = list(re.finditer(r'\blayer\s+(\d+)\b', text))
+    
+    if len(matches) < 2:
+        return []  # not a split layer — caller should fall back to single path
+    
+    # Slice text between consecutive layer keywords
+    slices = []
+    for i, match in enumerate(matches):
+        start = match.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        slices.append(text[start:end].strip())
+    
+
+    
+    # Extract fields per layer
+    layer_fields = []
+    for s in slices:
+        start, end, remainder = parse_depth_range(s)
+        fields = extract_description_fields(remainder)
+        fields["uscs_symbol"] = parse_uscs_symbol(s)
+        fields["depth_start"] = start
+        fields["depth_end"] = end
+        layer_fields.append(fields)
+    
+    # Bidirectional shared field inheritance
+    shared_fields = ["color", "moisture", "inclusions", "fill", "plasticity", "gradation"]
+    
+    for field in shared_fields:
+        # Find the first layer that has a value for this field
+        source_value = None
+        for lf in layer_fields:
+            val = lf.get(field)
+            if val is not None and val != [] and val != "":
+                source_value = val
+                break
+        
+        # Apply to all layers missing it
+        if source_value is not None:
+            for lf in layer_fields:
+                val = lf.get(field)
+                if val is None or val == [] or val == "":
+                    lf[field] = source_value
+    
+    return layer_fields
+
+# ─────────────────────────────────────────────
 # MAIN PIPELINE FUNCTION
 # ─────────────────────────────────────────────
 
@@ -236,39 +295,18 @@ def combination(transcript: str, blow_counts: list,
     - depth_ft:     depth in feet as logged on site
     - sample_type:  "SS" = spoon sample (default), "RC" = rock core (future)
     """
-     # Step 0 — normalize the transcript (applies dictionary corrections
-    # and soil-name regex normalizer). Runs on every path into the pipeline.
+    # ─── Always-run pre-branch steps ───
+
+    # Step 0 — normalize the transcript (dictionary corrections + soil-name regex)
     raw_transcript = transcript
     transcript = correct_transcript(transcript)
-    
 
     # Step 1 — segment the transcript by keywords
     segments = segment_transcript(transcript)
-
-    # Step 2 — extract description fields via Claude
     description_segment = segments.get("description", "")
-    fields = extract_description_fields(description_segment)
 
-    # Step 2b — deterministic extraction (these never go to Claude)
-    uscs_symbol = parse_uscs_symbol(description_segment)
-
-    # Step 3 — early exit if no soil name found
+    # Depth conversion
     depth_m = round(depth_ft * 0.3048, 2)
-    pen_depths = []
-    if not fields.get("soil_name"):
-        return SampleEntry(
-            depth_ft=depth_ft,
-            depth_m=depth_m,
-            sample_type=sample_type,
-            sample_no=sample_no,
-            blow_counts=blow_counts,
-            pen_depths=pen_depths,
-            n_value=0,
-            n_value_log="",
-            refusal=False,
-            raw_transcript=transcript,
-            flags=["No soil type recognized — manual input required"]
-        )
 
     # Step 4 — parse blow counts from transcript if not provided via tap UI
     if not blow_counts:
@@ -296,61 +334,20 @@ def combination(transcript: str, blow_counts: list,
             ],
         )
 
-    # Step 5 — calculate N-value and log notation
+    # Step 5 — N-value
     blow_count_data = parse_blow_counts(blow_counts, pen_depths)
 
-    # Step 6 — classify consistency/density from N-value
-    # Python does this — Claude never determines this term
-
-    consistency = get_consistency_density(fields["soil_name"], blow_count_data["n_value"])
-    if isinstance(fields["soil_name"],list) and len(fields["soil_name"]) > 1:
-        soil_name_flag = "Multiple soil names detected - Manual review required"
-    else:
-        soil_name_flag = ""
-    # Step 7 — parse recovery in inches and convert to mm
-    recovery_inches, remainder_string,recovery_flag = parse_recovery(segments.get("recovery", ""))
+    # Step 7 — recovery
+    recovery_inches, remainder_string, recovery_flag = parse_recovery(segments.get("recovery", ""))
     recovery_mm = round(recovery_inches * 25.4) if recovery_inches else None
 
-    # Step 8 — sort components most to least significant
-    fields["components"] = sort_components(fields.get("components", []))
-    
-
-    # Step 9 — assemble complete soil_data for Claude formatting
-    soil_data = {
-        "soil_name": fields["soil_name"],
-        "components": fields["components"],
-        "inclusions": fields.get("inclusions", []),
-        "color": fields.get("color"),
-        "moisture": fields.get("moisture"),
-        "fill": fields.get("fill", False),
-        "split_layer": isinstance(fields["soil_name"], list),
-        "consistency": consistency,
-        "uscs_symbol": uscs_symbol,
-        "plasticity": fields.get("plasticity"),
-        "gradation": fields.get("gradation"),
-    }
-
-    # Step 10 — Claude formatting prompt produces the Envision description string
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        system=ASTM_SYSTEM_PROMPT,
-        messages=[
-            {"role": "user",
-                   "content": f"Structured soil data:{json.dumps(soil_data, indent=2)}"
-                   }
-            ]
-    )
-    description = message.content[0].text
-
-    # Step 11 — recovery vs sum of pen depths (total penetration interval)
-    # Recovery cannot exceed total inches driven. When it does, flag for manual review.
-    # Recovery below total penetration: no comment or flag changes (voice comments unchanged).
+    # Comments
     comments = segments.get("comments") or ""
     comments = comments.strip(" ,.")
-    if not comments:
-        if remainder_string:
-            comments = remainder_string.strip(" ,.")
+    if not comments and remainder_string:
+        comments = remainder_string.strip(" ,.")
+
+    # Step 11 — recovery vs total penetration
     total_penetration = sum(pen_depths)
     recovery_vs_pen_flags = []
     if recovery_inches is not None:
@@ -362,21 +359,162 @@ def combination(transcript: str, blow_counts: list,
                     "manual review required"
                 )
 
-    # Collect all flags
     flags = list(recovery_vs_pen_flags)
-    if not fields.get("color"):
-        flags.append("Color not found — manual input required")
-    if not fields.get("moisture"):
-        flags.append("Moisture not found — manual input required")
-    if consistency is None:
-        flags.append("Soil type unrecognized — consistency requires manual input")
+    soil_name_flag = ""
+    split = is_split_layer(description_segment)
+    layers_for_db = None
+
+    # ─── Branch: split vs single layer ───
+
+    if split:
+        layer_fields = parse_split_layers(description_segment)
+
+        # No soil name check — any layer missing a soil name triggers manual input
+        if not layer_fields or not all(lf.get("soil_name") for lf in layer_fields):
+            return SampleEntry(
+                depth_ft=depth_ft,
+                depth_m=depth_m,
+                sample_type=sample_type,
+                sample_no=sample_no,
+                blow_counts=blow_counts,
+                pen_depths=pen_depths,
+                n_value=0,
+                n_value_log="",
+                refusal=False,
+                raw_transcript=transcript,
+                flags=["No soil type recognized — manual input required"],
+            )
+
+        layer_descriptions = []
+        layers_for_db = []
+
+        for lf in layer_fields:
+            consistency = get_consistency_density(lf["soil_name"], blow_count_data["n_value"])
+            lf["components"] = sort_components(lf.get("components", []))
+
+            soil_data = {
+                "soil_name": lf["soil_name"],
+                "components": lf["components"],
+                "inclusions": lf.get("inclusions", []),
+                "color": lf.get("color"),
+                "moisture": lf.get("moisture"),
+                "fill": lf.get("fill", False),
+                "split_layer": False,
+                "consistency": consistency,
+                "uscs_symbol": lf.get("uscs_symbol"),
+                "plasticity": lf.get("plasticity"),
+                "gradation": lf.get("gradation"),
+            }
+
+            message = client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                system=ASTM_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": f"Structured soil data:{json.dumps(soil_data, indent=2)}"}],
+            )
+            layer_desc = message.content[0].text
+            if lf.get("depth_start") is not None and lf.get("depth_end") is not None:
+                layer_desc_with_depth = f"{int(lf['depth_start'])}-{int(lf['depth_end'])} in: {layer_desc}"
+            else:
+                layer_desc_with_depth = layer_desc
+            layer_descriptions.append(layer_desc_with_depth)
+
+            layers_for_db.append({
+                "soil_name": lf["soil_name"],
+                "uscs_symbol": lf.get("uscs_symbol"),
+                "color": lf.get("color"),
+                "moisture": lf.get("moisture"),
+                "consistency": consistency,
+                "depth_start": lf.get("depth_start"),
+                "depth_end": lf.get("depth_end"),
+                "description": layer_desc,
+            })
+
+        for i, lf in enumerate(layer_fields):
+            if lf.get("depth_start") is None or lf.get("depth_end") is None:
+                flags.append(f"Layer {i+1} depth range not found — manual input required")
+
+        description = " / ".join(layer_descriptions)
+
+        # Per-field checks across all layers (shared inheritance already applied)
+        if not any(lf.get("color") for lf in layer_fields):
+            flags.append("Color not found — manual input required")
+        if not any(lf.get("moisture") for lf in layer_fields):
+            flags.append("Moisture not found — manual input required")
+        for lf in layer_fields:
+            if lf.get("parse_error"):
+                flags.append(lf["parse_error"])
+                break
+
+    else:
+        fields = extract_description_fields(description_segment)
+        uscs_symbol = parse_uscs_symbol(description_segment)
+
+        # Step 3 — early exit if no soil name found
+        if not fields.get("soil_name"):
+            return SampleEntry(
+                depth_ft=depth_ft,
+                depth_m=depth_m,
+                sample_type=sample_type,
+                sample_no=sample_no,
+                blow_counts=blow_counts,
+                pen_depths=pen_depths,
+                n_value=0,
+                n_value_log="",
+                refusal=False,
+                raw_transcript=transcript,
+                flags=["No soil type recognized — manual input required"],
+            )
+
+        # Step 6 — consistency/density from N-value
+        consistency = get_consistency_density(fields["soil_name"], blow_count_data["n_value"])
+
+        if isinstance(fields["soil_name"], list) and len(fields["soil_name"]) > 1:
+            soil_name_flag = "Multiple soil names detected - Manual review required"
+
+        # Step 8 — sort components
+        fields["components"] = sort_components(fields.get("components", []))
+
+        # Step 9 — assemble soil_data
+        soil_data = {
+            "soil_name": fields["soil_name"],
+            "components": fields["components"],
+            "inclusions": fields.get("inclusions", []),
+            "color": fields.get("color"),
+            "moisture": fields.get("moisture"),
+            "fill": fields.get("fill", False),
+            "split_layer": isinstance(fields.get("soil_name"),list),
+            "consistency": consistency,
+            "uscs_symbol": uscs_symbol,
+            "plasticity": fields.get("plasticity"),
+            "gradation": fields.get("gradation"),
+        }
+
+        # Step 10 — Claude formatting
+        message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
+            system=ASTM_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": f"Structured soil data:{json.dumps(soil_data, indent=2)}"}],
+        )
+        description = message.content[0].text
+
+        if not fields.get("color"):
+            flags.append("Color not found — manual input required")
+        if not fields.get("moisture"):
+            flags.append("Moisture not found — manual input required")
+        if consistency is None:
+            flags.append("Soil type unrecognized — consistency requires manual input")
+        if fields.get("parse_error"):
+            flags.append(fields["parse_error"])
+
+    # ─── Always-run post-branch steps ───
+
     if recovery_flag:
         flags.append(recovery_flag)
-    if fields.get("parse_error"):
-        flags.append(fields["parse_error"])
     if soil_name_flag:
         flags.append(soil_name_flag)
-    # Step 12 — return complete SampleEntry object
+
     return SampleEntry(
         depth_ft=depth_ft,
         depth_m=depth_m,
@@ -392,7 +530,8 @@ def combination(transcript: str, blow_counts: list,
         raw_transcript=transcript,
         description=description,
         flags=flags,
-        comments=comments
+        comments=comments,
+        layers=layers_for_db if split else None,
     )
 
 # ─────────────────────────────────────────────

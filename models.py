@@ -35,6 +35,7 @@ class SampleEntry:
     raw_transcript: str = ""
     description: str = ""
     flags: list = field(default_factory=list)
+    layers: Optional[list] = None
 
     # ── Comments ──
     comments: Optional[str] = None

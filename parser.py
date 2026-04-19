@@ -111,6 +111,36 @@ def segment_transcript(transcript: str) -> dict:
 
     return segment_dict
 
+# ─────────────────────────────────────────────
+# Check if split layer
+# ─────────────────────────────────────────────
+
+def is_split_layer(description_segment: str) -> bool:
+    matches = re.findall(r'\blayer\s+\d+\b', description_segment.lower())
+    return len(matches) >= 2
+
+# ─────────────────────────────────────────────
+# Split layer depths parser
+# ─────────────────────────────────────────────
+def parse_depth_range(layer_slice: str) -> tuple:
+    """
+    Extracts depth range in inches from a layer slice.
+    
+    Input:  "0 to 14 inches silty clay brown moist"
+    Output: (0.0, 14.0, "silty clay brown moist")
+    
+    Input:  "silty clay brown moist"  — no range stated
+    Output: (None, None, "silty clay brown moist")
+    """
+    match = re.search( r'(\d+\.?\d*)\s*(?:to|-)\s*(\d+\.?\d*)\s*(?:inches?)', layer_slice)
+    if not match:
+        return (None, None, layer_slice)
+    
+    start = float(match.group(1))
+    end = float(match.group(2))
+    # Remove the depth range from the slice before passing to Claude
+    remainder = layer_slice[:match.start()] + layer_slice[match.end():]
+    return (start, end, remainder.strip())
 
 # ─────────────────────────────────────────────
 # BLOW COUNT PARSER

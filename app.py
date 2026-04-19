@@ -243,17 +243,39 @@ async def recalculate_sample(project_id: int, borehole_id: int, sample_data: str
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/projects/{project_id}/boreholes/{borehole_id}/samples/check")
-async def check_sample_at_depth(project_id: int, borehole_id: int, depth_ft: float = Query(...)):
+async def check_sample_at_depth(
+    project_id: int,
+    borehole_id: int,
+    depth_ft: float = Query(None),
+    sample_no: int = Query(None),
+):
     try:
-        result = supabase_client.table("samples") \
-            .select("id, sample_no, depth_ft") \
-            .eq("project_id", project_id) \
-            .eq("borehole_id", borehole_id) \
-            .eq("depth_ft", depth_ft) \
-            .execute()
-        if result.data:
-            return {"exists": True, "count": len(result.data)}
-        return {"exists": False}
+        depth_exists = False
+        sample_no_exists = False
+
+        if depth_ft is not None:
+            r = supabase_client.table("samples") \
+                .select("id") \
+                .eq("project_id", project_id) \
+                .eq("borehole_id", borehole_id) \
+                .eq("depth_ft", depth_ft) \
+                .execute()
+            depth_exists = bool(r.data)
+
+        if sample_no is not None:
+            r = supabase_client.table("samples") \
+                .select("id") \
+                .eq("project_id", project_id) \
+                .eq("borehole_id", borehole_id) \
+                .eq("sample_no", sample_no) \
+                .execute()
+            sample_no_exists = bool(r.data)
+
+        return {
+            "exists": depth_exists or sample_no_exists,
+            "depth_exists": depth_exists,
+            "sample_no_exists": sample_no_exists,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -289,17 +311,29 @@ async def confirm_sample(project_id: int, borehole_id: int, sample_data: str = F
         _ = get_borehole(project_id, borehole_id)
         data = json.loads(sample_data)
 
-        # Guard against duplicate depth before insert
+        # Guard against duplicate depth or sample_no before insert
         depth_ft = data.get("depth_ft")
-        existing = supabase_client.table("samples") \
+        sample_no = data.get("sample_no")
+
+        existing_depth = supabase_client.table("samples") \
             .select("id") \
             .eq("project_id", project_id) \
             .eq("borehole_id", borehole_id) \
             .eq("depth_ft", depth_ft) \
             .limit(1) \
             .execute()
-        if existing.data:
+        if existing_depth.data:
             raise HTTPException(status_code=400, detail=f"A sample at depth {depth_ft} ft already exists in this borehole.")
+
+        existing_no = supabase_client.table("samples") \
+            .select("id") \
+            .eq("project_id", project_id) \
+            .eq("borehole_id", borehole_id) \
+            .eq("sample_no", sample_no) \
+            .limit(1) \
+            .execute()
+        if existing_no.data:
+            raise HTTPException(status_code=400, detail=f"Sample number {sample_no} already exists in this borehole.")
 
         # Recalculate SPT fields from submitted blow counts
         blow_counts = data["blow_counts"]
@@ -314,6 +348,7 @@ async def confirm_sample(project_id: int, borehole_id: int, sample_data: str = F
         data["blow_counts"] = json.dumps(blow_counts)
         data["pen_depths"] = json.dumps(pen_depths)
         data["flags"] = json.dumps(data["flags"])
+        data["layers"] = data.get("layers")
         data["project_id"] = project_id
         data["borehole_id"] = borehole_id
 
@@ -322,8 +357,10 @@ async def confirm_sample(project_id: int, borehole_id: int, sample_data: str = F
             raise HTTPException(status_code=500, detail="Insert failed")
 
         return {"saved": True, "sample_id": result.data[0]["id"]}
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"saved": False, "error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 def serve_ui():

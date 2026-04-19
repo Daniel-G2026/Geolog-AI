@@ -164,6 +164,18 @@
             border-left: 3px solid var(--accent);
         }
 
+        .layers-box { display: flex; flex-direction: column; gap: 6px; }
+        .layers-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--text-dim); text-transform: uppercase; }
+        .layer-item {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px; color: var(--text);
+            line-height: 1.5; padding: 10px 12px;
+            background: var(--surface2);
+            border-radius: 8px;
+            border-left: 2px solid var(--text-dim);
+        }
+        .layer-item-header { font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; margin-bottom: 4px; text-transform: uppercase; }
+
         /* FIX 1 — blow counts now in a 3-column grid so they show up */
         .result-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 
@@ -445,9 +457,9 @@
                 <input type="number" id="depth_ft" placeholder="5.0" step="0.5" min="0">
             </div>
             <div id="depthWarning" style="display:none; margin-top:6px; font-size:12px; color:var(--danger); background:rgba(248,113,113,0.08); border:1px solid rgba(248,113,113,0.3); border-radius:6px; padding:8px 10px;">
-                ✕ A sample already exists at this depth in this borehole. Please enter a different depth.
+                <span id="depthWarningText">✕ A sample already exists at this depth in this borehole. Please enter a different depth.</span>
                 <span style="display:block; margin-top:4px;">
-                    <button onclick="document.getElementById('depth_ft').value=''; hideDepthWarning();" style="font-size:11px; padding:2px 8px; cursor:pointer;">Clear</button>
+                    <button onclick="document.getElementById('depth_ft').value=''; document.getElementById('sample_no').value=''; hideDepthWarning();" style="font-size:11px; padding:2px 8px; cursor:pointer;">Clear</button>
                 </span>
             </div>
             <div class="input-group">
@@ -485,6 +497,12 @@
 
         <!-- Formatted description -->
         <div class="description-text" id="descriptionText"></div>
+
+        <!-- Per-layer breakdown (split-layer samples only) -->
+        <div class="layers-box" id="layersBox" style="display:none">
+            <div class="layers-label">Layers</div>
+            <div id="layersList"></div>
+        </div>
 
         <!--
             FIX 1 — Blow counts added as third field in the grid.
@@ -831,10 +849,12 @@
 
     async function startRecording() {
         const depth = document.getElementById('depth_ft').value;
+        const sampleNo = document.getElementById('sample_no').value;
 
         if (!depth) { showError('Please enter depth before recording.'); return; }
+        if (!sampleNo) { showError('Please enter sample number before recording.'); return; }
         hideDepthWarning();
-        const duplicate = await checkDepth(depth);
+        const duplicate = await checkDepth(depth, sampleNo);
         if (duplicate) return;
         hideError();
 
@@ -925,6 +945,27 @@
 
         // Description
         document.getElementById('descriptionText').textContent = data.description || '—';
+
+        // Per-layer breakdown (only populated for split-layer samples)
+        const layersBox = document.getElementById('layersBox');
+        const layersList = document.getElementById('layersList');
+        if (data.layers && data.layers.length > 0) {
+            layersList.innerHTML = data.layers.map((lf, i) => {
+                const depth = (lf.depth_start != null && lf.depth_end != null)
+                    ? `${lf.depth_start}-${lf.depth_end} in`
+                    : `Layer ${i + 1}`;
+                const meta = [lf.soil_name, lf.uscs_symbol, lf.consistency].filter(Boolean).join(' · ');
+                return `
+                    <div class="layer-item">
+                        <div class="layer-item-header">${depth}${meta ? ' — ' + meta : ''}</div>
+                        ${lf.description || ''}
+                    </div>`;
+            }).join('');
+            layersBox.style.display = 'flex';
+        } else {
+            layersBox.style.display = 'none';
+            layersList.innerHTML = '';
+        }
 
         // N-value
         document.getElementById('nValueDisplay').textContent = data.n_value_log || '—';
@@ -1050,7 +1091,8 @@
             document.getElementById('sample_no').value = currentNo + 1;
 
         } catch (err) {
-            showError('Save failed — check connection.');
+            showError('Save failed — ' + (err.message || 'check connection.'));
+            console.error('Save error:', err);
             btn.disabled = false;
             btn.textContent = '✓  Confirm & Save';
         }
@@ -1210,12 +1252,23 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    async function checkDepth(depth) {
+    async function checkDepth(depth, sampleNo) {
         if (!depth || !currentProjectId || !currentBoreholeId) return false;
         try {
-            const res = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/check?depth_ft=${depth}`);
+            const params = new URLSearchParams({ depth_ft: depth });
+            if (sampleNo) params.append('sample_no', sampleNo);
+            const res = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/check?${params.toString()}`);
             const data = await res.json();
             if (data.exists) {
+                let msg = '';
+                if (data.depth_exists && data.sample_no_exists) {
+                    msg = `✕ Depth ${depth} ft and sample no. ${sampleNo} both already exist in this borehole.`;
+                } else if (data.depth_exists) {
+                    msg = `✕ A sample already exists at depth ${depth} ft in this borehole. Please enter a different depth.`;
+                } else {
+                    msg = `✕ Sample number ${sampleNo} already exists in this borehole. Please enter a different sample number.`;
+                }
+                document.getElementById('depthWarningText').textContent = msg;
                 document.getElementById('depthWarning').style.display = 'block';
                 return true;
             }
