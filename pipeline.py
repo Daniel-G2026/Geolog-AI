@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 from whisper import transcribe, correct_transcript
 from classification_engine import get_consistency_density, parse_blow_counts
-from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery, parse_uscs_symbol, is_split_layer, parse_depth_range
+from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery, is_split_layer
 from models import SampleEntry
 import re
 
@@ -67,6 +67,10 @@ SPECIAL HANDLING:
 - Inclusions should be included only if present.
 - Do not repeat the primary soil name as a component.
 - If split_layer is true and multiple soil names are provided, join them using " / " then continue with shared descriptors.
+- Do not add extra soil names.
+- Do not duplicate any soil name as a component.
+- Continue with shared descriptors after the joined soil names.
+- Example: "Silty clay / Sand, brown, moist, compact.
 - If only one soil name is present, do not use a slash.
 
 OUTPUT EXAMPLES:
@@ -99,13 +103,16 @@ Fields to extract:
 - fill: true if "fill" appears as a soil type descriptor, false otherwise
 - plasticity: one of ["non-plastic", "slightly plastic", "low plasticity", "high plasticity"] or null if not mentioned
 - gradation: one of ["poorly graded", "well graded"] or null if not mentioned
+- depth_start: float or null — depth range start in inches
+- depth_end: float or null — depth range end in inches
+- uscs_symbol: one of ["GW","GP","GM","GC","SW","SP","SM","SC","CL","ML","OL","CH","MH","OH","PT"] or null if not mentioned
 
 Rules:
 - soil_name must NOT include trace/some quantifiers
     if multiple valid soil names are detected, return soil_name as a list of strings — if only one, return it as a single string
 - components are secondary soils preceded by trace/some/trace to some
-- inclusions: standard geological terms (rock fragments, oxidation,concrete fragments,cobbles,boulders) go in as-is.
-  Organic matter of any kind (roots, branches, organics, rootlets) → "organic inclusions"
+- inclusions: standard geological terms (rock fragments, oxidation,concrete fragments,cobbles,boulders,rootlets) go in as-is.
+  Organic matter of any kind (organic,etc) → "organic inclusions"
   Unusual foreign objects (coin, brick fragment, glass, metal debris) → include exactly as found as "foreign object" e.g "glass"
   - plasticity: map any phrasing about plasticity to one of the four enum values.
     "plasticity is low", "low plasticity", "plasticity that's low", "has a low plasticity" → "low plasticity"
@@ -116,6 +123,8 @@ Rules:
     "poorly graded", "badly graded" → "poorly graded"
     "well graded", "well-graded" → "well graded"
     If gradation is not mentioned, return null.
+- depth_start and depth_end: extract any phrasing like "0 to 14 inches", "14 inches to 20 inches", "0-14in", "from 14 to 20 inches" into numeric floats. If no depth range is stated, return null.
+- uscs_symbol: map phrasings like "symbol is CL", "group name CL", "group symbol CL", "USCS CL", "(CL)", or transcription artifacts ("see L" → "CL", "see H" → "CH") to the matching symbol from the enum. Return uppercase. If no symbol is stated, return null.
 - Use null for missing strings
 - Use empty list [] for missing lists
 - fill is always true or false, never null
@@ -152,8 +161,11 @@ def extract_description_fields(description_segment: str) -> dict:
             "moisture": None,
             "inclusions": [],
             "fill": False,
-            "plasticity": None,    
+            "plasticity": None,
             "gradation": None,
+            "depth_start": None,
+            "depth_end": None,
+            "uscs_symbol": None,
         }
 
     message = client.messages.create(
@@ -176,8 +188,11 @@ def extract_description_fields(description_segment: str) -> dict:
             "moisture": None,
             "inclusions": [],
             "fill": False,
-            "plasticity": None,   
+            "plasticity": None,
             "gradation": None,
+            "depth_start": None,
+            "depth_end": None,
+            "uscs_symbol": None,
             "parse_error": "Claude extraction failed — manual input required"
         }
 
@@ -235,11 +250,7 @@ def parse_split_layers(description_segment: str) -> list:
     # Extract fields per layer
     layer_fields = []
     for s in slices:
-        start, end, remainder = parse_depth_range(s)
-        fields = extract_description_fields(remainder)
-        fields["uscs_symbol"] = parse_uscs_symbol(remainder)
-        fields["depth_start"] = start
-        fields["depth_end"] = end
+        fields = extract_description_fields(s)
         layer_fields.append(fields)
     
     # Bidirectional shared field inheritance
@@ -448,7 +459,6 @@ def combination(transcript: str, blow_counts: list,
 
     else:
         fields = extract_description_fields(description_segment)
-        uscs_symbol = parse_uscs_symbol(description_segment)
 
         # Step 3 — early exit if no soil name found
         if not fields.get("soil_name"):
@@ -485,7 +495,7 @@ def combination(transcript: str, blow_counts: list,
             "fill": fields.get("fill", False),
             "split_layer": isinstance(fields.get("soil_name"),list),
             "consistency": consistency,
-            "uscs_symbol": uscs_symbol,
+            "uscs_symbol": fields.get("uscs_symbol"),
             "plasticity": fields.get("plasticity"),
             "gradation": fields.get("gradation"),
         }
