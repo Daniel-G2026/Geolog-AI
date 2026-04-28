@@ -951,14 +951,23 @@
         const layersList = document.getElementById('layersList');
         if (data.layers && data.layers.length > 0) {
             layersList.innerHTML = data.layers.map((lf, i) => {
-                const depth = (lf.depth_start != null && lf.depth_end != null)
-                    ? `${lf.depth_start}-${lf.depth_end} in`
-                    : `Layer ${i + 1}`;
                 const meta = [lf.soil_name, lf.uscs_symbol, lf.consistency].filter(Boolean).join(' · ');
                 return `
-                    <div class="layer-item">
-                        <div class="layer-item-header">${depth}${meta ? ' — ' + meta : ''}</div>
-                        ${lf.description || ''}
+                    <div class="layer-item" id="layer-item-${i}">
+                        <div class="layer-item-header" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+                            <span style="color:var(--text-dim); font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">Layer ${i+1}</span>
+                            <input type="number" step="0.5" value="${lf.depth_start ?? ''}"
+                                placeholder="start"
+                                style="width:56px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:2px 6px; text-align:center;"
+                                oninput="updateLayerDepth(${i}, 'depth_start', this.value)">
+                            <span style="color:var(--text-dim);">–</span>
+                            <input type="number" step="0.5" value="${lf.depth_end ?? ''}"
+                                placeholder="end"
+                                style="width:56px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:2px 6px; text-align:center;"
+                                oninput="updateLayerDepth(${i}, 'depth_end', this.value)">
+                            <span style="color:var(--text-dim); font-size:10px;">in${meta ? ' — ' + meta : ''}</span>
+                        </div>
+                        <div id="layer-desc-${i}" style="font-size:13px; line-height:1.5;">${lf.description || ''}</div>
                     </div>`;
             }).join('');
             layersBox.style.display = 'flex';
@@ -1036,6 +1045,33 @@
 
         resetStatus();
         document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function updateLayerDepth(index, field, value) {
+        if (!currentSampleData || !currentSampleData.layers) return;
+        const parsed = parseFloat(value);
+        currentSampleData.layers[index][field] = isNaN(parsed) ? null : parsed;
+
+        const lf = currentSampleData.layers[index];
+        const start = lf.depth_start;
+        const end = lf.depth_end;
+        const baseDesc = lf.description || '';
+        const prefixedDesc = (start != null && end != null)
+            ? `${start}-${end} in: ${baseDesc}`
+            : baseDesc;
+
+        const descEl = document.getElementById(`layer-desc-${index}`);
+        if (descEl) descEl.textContent = prefixedDesc;
+
+        // Rebuild top-level description and keep editDescription in sync
+        const allPrefixed = currentSampleData.layers.map(l => {
+            const s = l.depth_start;
+            const e = l.depth_end;
+            const d = l.description || '';
+            return (s != null && e != null) ? `${s}-${e} in: ${d}` : d;
+        });
+        currentSampleData.description = allPrefixed.join(' / ');
+        document.getElementById('editDescription').value = currentSampleData.description;
     }
 
     async function confirmSample() {

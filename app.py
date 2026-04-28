@@ -42,6 +42,15 @@ class BoreholeCreate(BaseModel):
     hammer_drop: Optional[str] = None     # inches
     water_level_depth: Optional[float] = None   # m
     cave_in: Optional[float] = None             # m
+
+class LayerDepthUpdate(BaseModel):
+    index: int
+    depth_start: Optional[float] = None
+    depth_end: Optional[float] = None
+
+class LayerDepthPatchRequest(BaseModel):
+    layers: list[LayerDepthUpdate]
+
 # ── DB helpers ──
 
 def check_existing(table: str, column: str, value, select: str = "id"):
@@ -357,6 +366,64 @@ async def confirm_sample(project_id: int, borehole_id: int, sample_data: str = F
             raise HTTPException(status_code=500, detail="Insert failed")
 
         return {"saved": True, "sample_id": result.data[0]["id"]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.patch("/projects/{project_id}/boreholes/{borehole_id}/samples/{sample_id}/layers")
+async def patch_layer_depths(project_id: int, borehole_id: int, sample_id: int, data: LayerDepthPatchRequest):
+    try:
+        result = supabase_client.table("samples") \
+            .select("layers") \
+            .eq("id", sample_id) \
+            .eq("project_id", project_id) \
+            .eq("borehole_id", borehole_id) \
+            .single() \
+            .execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Sample not found")
+
+        current_layers = result.data.get("layers")
+        if not current_layers or not isinstance(current_layers, list):
+            raise HTTPException(status_code=400, detail="Sample has no split-layer data")
+
+        for update in data.layers:
+            i = update.index
+            if i < 0 or i >= len(current_layers):
+                raise HTTPException(status_code=400, detail=f"Layer index {i} out of range")
+            lf = current_layers[i]
+            if update.depth_start is not None:
+                lf["depth_start"] = update.depth_start
+            if update.depth_end is not None:
+                lf["depth_end"] = update.depth_end
+            current_layers[i] = lf
+
+        # Rebuild top-level description
+        all_prefixed = []
+        for lf in current_layers:
+            s = lf.get("depth_start")
+            e = lf.get("depth_end")
+            d = lf.get("description", "")
+            if s is not None and e is not None:
+                start_str = int(s) if s == int(s) else s
+                end_str = int(e) if e == int(e) else e
+                all_prefixed.append(f"{start_str}-{end_str} in: {d}")
+            else:
+                all_prefixed.append(d)
+        top_description = " / ".join(all_prefixed)
+
+        patch_result = supabase_client.table("samples") \
+            .update({"layers": current_layers, "description": top_description}) \
+            .eq("id", sample_id) \
+            .execute()
+
+        if not patch_result.data:
+            raise HTTPException(status_code=500, detail="Patch failed")
+
+        return {"updated": True, "description": top_description, "layers": current_layers}
+
     except HTTPException:
         raise
     except Exception as e:

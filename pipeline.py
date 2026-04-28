@@ -425,7 +425,11 @@ def combination(transcript: str, blow_counts: list,
             )
             layer_desc = message.content[0].text
             if lf.get("depth_start") is not None and lf.get("depth_end") is not None:
-                layer_desc_with_depth = f"{int(lf['depth_start'])}-{int(lf['depth_end'])} in: {layer_desc}"
+                ds = lf['depth_start']
+                de = lf['depth_end']
+                start_str = int(ds) if ds == int(ds) else ds
+                end_str = int(de) if de == int(de) else de
+                layer_desc_with_depth = f"{start_str}-{end_str} in: {layer_desc}"
             else:
                 layer_desc_with_depth = layer_desc
             layer_descriptions.append(layer_desc_with_depth)
@@ -444,6 +448,30 @@ def combination(transcript: str, blow_counts: list,
         for i, lf in enumerate(layer_fields):
             if lf.get("depth_start") is None or lf.get("depth_end") is None:
                 flags.append(f"Layer {i+1} depth range not found — manual input required")
+
+        # Check A — depth range order within each layer (start < end)
+        for i, lf in enumerate(layers_for_db):
+            ds = lf.get("depth_start")
+            de = lf.get("depth_end")
+            if ds is not None and de is not None and ds >= de:
+                flags.append(f"Layer {i+1} depth range invalid: start ({ds}) ≥ end ({de}) — manual input required")
+
+        # Check B — gap/overlap between consecutive layers
+        for i in range(len(layers_for_db) - 1):
+            this_end = layers_for_db[i].get("depth_end")
+            next_start = layers_for_db[i + 1].get("depth_start")
+            if this_end is not None and next_start is not None:
+                if not isclose(this_end, next_start, abs_tol=0.1):
+                    if next_start > this_end:
+                        flags.append(f"Gap between layer {i+1} and layer {i+2}: layer {i+1} ends at {this_end} in, layer {i+2} starts at {next_start} in — manual review required")
+                    else:
+                        flags.append(f"Overlap between layer {i+1} and layer {i+2}: layer {i+1} ends at {this_end} in, layer {i+2} starts at {next_start} in — manual review required")
+
+        # Check C — last layer depth_end vs recovery_inches
+        if recovery_inches is not None and layers_for_db:
+            last_end = layers_for_db[-1].get("depth_end")
+            if last_end is not None and not isclose(last_end, recovery_inches, abs_tol=0.1):
+                flags.append(f"Last layer ends at {last_end} in but recovery is {recovery_inches} in — partial recovery across layers, manual review required")
 
         description = " / ".join(layer_descriptions)
 
