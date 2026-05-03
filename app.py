@@ -230,6 +230,43 @@ async def log_sample(
             os.remove(temp_path)
 
 
+@app.get("/projects/{project_id}/boreholes/{borehole_id}/samples")
+async def list_samples(project_id: int, borehole_id: int):
+    """Return all confirmed samples for a borehole, sorted by depth.
+
+    blow_counts / pen_depths / flags are stored as JSON strings on insert
+    (see confirm_sample); parse them back into arrays here so the frontend
+    receives the same shape the draft pipeline returns.
+    """
+    try:
+        get_borehole(project_id, borehole_id)
+        result = (
+            supabase_client.table("samples")
+            .select("*")
+            .eq("project_id", project_id)
+            .eq("borehole_id", borehole_id)
+            .order("depth_ft")
+            .execute()
+        )
+        samples = []
+        for row in (result.data or []):
+            for key in ("blow_counts", "pen_depths", "flags", "layers"):
+                v = row.get(key)
+                if isinstance(v, str):
+                    try:
+                        row[key] = json.loads(v)
+                    except Exception:
+                        row[key] = [] if key != "layers" else None
+                elif v is None and key != "layers":
+                    row[key] = []
+            samples.append(row)
+        return {"samples": samples}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/projects/{project_id}/boreholes/{borehole_id}/samples/recalculate")
 async def recalculate_sample(project_id: int, borehole_id: int, sample_data: str = Form(...)):
     try:

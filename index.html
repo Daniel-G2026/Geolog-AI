@@ -1,1344 +1,1731 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <title>GeoLog AI</title>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg: #0d0f0e;
-            --surface: #161918;
-            --surface2: #1e2220;
-            --border: #2a2e2c;
-            --accent: #4ade80;
-            --accent-dim: #16a34a;
-            --danger: #f87171;
-            --warn: #fbbf24;
-            --text: #e2e8e4;
-            --text-dim: #6b7a72;
-            --text-mid: #9aaba2;
-            --record: #ef4444;
-            --record-glow: rgba(239, 68, 68, 0.3);
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a2332">
+<title>GeoLog AI — Field Logger</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   GeoLog AI — mobile-first field logging cockpit
+   Theme: high-contrast, sunlight-readable, glove-friendly
+   ========================================================= */
+:root{
+  --bg:           #eef0ec;          /* concrete / off-white */
+  --paper:        #f7f8f5;
+  --surface:      #ffffff;
+  --surface-2:    #e6e9e3;
+  --ink:          #161c20;          /* dark slate */
+  --ink-2:        #2b3640;
+  --muted:        #5a6770;
+  --rule:         #b8bfb8;
+  --rule-strong:  #2b3640;
+  --blueprint:    #14467c;          /* engineering blue */
+  --blueprint-2:  #1d63ad;
+  --record:       #e2511f;          /* safety orange */
+  --record-deep:  #b53d12;
+  --record-glow:  rgba(226,81,31,.35);
+  --amber:        #c98a00;
+  --amber-bg:     #fff3d2;
+  --amber-rule:   #d6a82b;
+  --green:        #1f7a3d;
+  --green-bg:     #d7ebde;
+  --red:          #b3261e;
+  --red-bg:       #f9dedc;
+  --info:         #0d4a8a;
+  --info-bg:      #d8e6f6;
+  --shadow:       0 1px 0 rgba(0,0,0,.04), 0 2px 8px rgba(0,0,0,.06);
+  --shadow-lg:    0 4px 20px rgba(0,0,0,.12);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;font-size:16px;line-height:1.4;}
+body{min-height:100vh;padding-bottom:env(safe-area-inset-bottom);}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
 
-        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* ---------- top app bar ---------- */
+.appbar{
+  background:var(--ink);color:#fff;
+  padding:12px 16px;
+  display:flex;align-items:center;gap:12px;
+  position:sticky;top:0;z-index:50;
+  box-shadow:var(--shadow);
+}
+.appbar .brand{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px;letter-spacing:.5px;}
+.appbar .brand .dot{color:var(--record);}
+.appbar .tabs{display:flex;gap:2px;margin-left:auto;background:#0a0f12;border-radius:8px;padding:3px;}
+.appbar .tab{
+  background:transparent;border:0;color:#9aa6ad;
+  font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;
+  padding:10px 14px;border-radius:6px;cursor:pointer;letter-spacing:.5px;text-transform:uppercase;
+  min-height:40px;
+}
+.appbar .tab.active{background:var(--blueprint);color:#fff;}
+.appbar .tab:disabled{opacity:.4;cursor:not-allowed;}
 
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'IBM Plex Sans', sans-serif;
-            min-height: 100vh;
-            padding: 0 0 60px 0;
-        }
+/* ---------- sticky context strip ---------- */
+.contextstrip{
+  background:var(--paper);
+  border-bottom:2px solid var(--rule-strong);
+  padding:10px 16px;
+  font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-2);
+  display:none;flex-direction:column;gap:6px;
+  position:sticky;top:58px;z-index:40;
+}
+.contextstrip.visible{display:flex;}
+.contextstrip .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.contextstrip .pill{
+  background:var(--ink);color:#fff;
+  padding:4px 10px;border-radius:4px;font-weight:700;letter-spacing:.5px;
+}
+.contextstrip .pill.bp{background:var(--blueprint);}
+.contextstrip .meta{color:var(--muted);font-size:11px;}
+.contextstrip .change{
+  background:transparent;border:0;color:var(--blueprint);font-family:inherit;font-size:11px;font-weight:600;
+  text-decoration:underline;cursor:pointer;padding:2px 0;
+}
+.contextstrip .stats{display:flex;gap:14px;font-size:11px;color:var(--muted);flex-wrap:wrap;}
+.contextstrip .stats b{color:var(--ink);font-weight:700;}
 
-        header {
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            padding: 16px 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
+/* ---------- screen scaffolding ---------- */
+main{max-width:540px;margin:0 auto;padding:14px 14px 80px;}
+.screen{display:none;flex-direction:column;gap:14px;}
+.screen.active{display:flex;}
 
-        .logo { font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 600; color: var(--accent); }
-        .logo span { color: var(--text-dim); font-weight: 400; }
-        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.card{
+  background:var(--surface);border:1px solid var(--rule);
+  border-radius:10px;padding:16px;box-shadow:var(--shadow);
+}
+.card.tight{padding:12px;}
+.card-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px;
+}
+.card-title{font-size:13px;font-weight:700;color:var(--ink);font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;text-transform:uppercase;}
+.card-sub{font-size:12px;color:var(--muted);}
 
-        main { padding: 20px 16px; max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+/* ---------- inputs ---------- */
+.field{display:flex;flex-direction:column;gap:6px;}
+.field label{font-size:12px;font-weight:600;color:var(--ink-2);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.5px;}
+.field .req{color:var(--red);}
+.field input,.field textarea,.field select{
+  background:var(--surface);border:1.5px solid var(--rule-strong);
+  border-radius:8px;padding:14px 14px;font-size:17px;font-weight:600;
+  color:var(--ink);font-family:'IBM Plex Mono',monospace;
+  width:100%;outline:none;-webkit-appearance:none;appearance:none;
+  min-height:48px;
+}
+.field textarea{font-weight:500;font-size:15px;line-height:1.5;min-height:90px;resize:vertical;}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--blueprint);box-shadow:0 0 0 3px rgba(20,70,124,.15);}
+.field input::placeholder,.field textarea::placeholder{color:#9aa3aa;font-weight:400;}
+.field .hint{font-size:12px;color:var(--muted);}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 
-        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-        .card-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 10px; }
+/* ---------- buttons ---------- */
+.btn{
+  min-height:48px;padding:12px 16px;border-radius:8px;border:1.5px solid transparent;
+  font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;letter-spacing:.5px;
+  cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  text-transform:uppercase;transition:transform .08s ease, background .15s ease, border-color .15s ease;
+  width:100%;
+}
+.btn:active{transform:scale(.98);}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.btn-primary{background:var(--blueprint);color:#fff;border-color:var(--blueprint);}
+.btn-primary:active{background:var(--blueprint-2);}
+.btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--rule-strong);}
+.btn-ghost:active{background:var(--surface-2);}
+.btn-record{background:var(--record);color:#fff;border-color:var(--record-deep);}
+.btn-record:active{background:var(--record-deep);}
+.btn-confirm{background:var(--green);color:#fff;border-color:#155228;}
+.btn-confirm:active{background:#155228;}
+.btn-danger{background:var(--surface);color:var(--red);border-color:var(--red);}
+.btn-warn{background:var(--surface);color:var(--amber);border-color:var(--amber-rule);}
+.btn-link{background:transparent;border:0;color:var(--blueprint);text-decoration:underline;font-weight:600;text-transform:none;letter-spacing:0;min-height:36px;padding:6px 8px;width:auto;font-size:13px;}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.btn-row .btn{width:100%;}
 
-        .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .input-group { display: flex; flex-direction: column; gap: 6px; }
-        .input-group label { font-size: 11px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; }
+/* ---------- segmented ---------- */
+.seg{display:flex;background:var(--surface-2);border-radius:8px;padding:3px;border:1px solid var(--rule);}
+.seg button{
+  flex:1;background:transparent;border:0;padding:10px;border-radius:6px;
+  font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--ink-2);
+  cursor:pointer;min-height:42px;text-transform:uppercase;letter-spacing:.5px;
+}
+.seg button.active{background:var(--surface);color:var(--ink);box-shadow:var(--shadow);}
 
-        input[type="number"], input[type="text"] {
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 12px 14px;
-            color: var(--text);
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 18px;
-            font-weight: 600;
-            width: 100%;
-            outline: none;
-            transition: border-color 0.15s;
-            -webkit-appearance: none;
-        }
-        input:focus { border-color: var(--accent); }
-        input::placeholder { color: var(--text-dim); font-weight: 400; font-size: 14px; }
+/* ---------- alerts / flags ---------- */
+.alert{border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5;border:1.5px solid transparent;display:flex;gap:8px;align-items:flex-start;}
+.alert .icon{font-weight:800;flex-shrink:0;}
+.alert.info{background:var(--info-bg);color:var(--info);border-color:var(--info);}
+.alert.amber{background:var(--amber-bg);color:#7a5400;border-color:var(--amber-rule);}
+.alert.red{background:var(--red-bg);color:var(--red);border-color:var(--red);}
+.alert.green{background:var(--green-bg);color:var(--green);border-color:var(--green);}
+.alert.hidden{display:none;}
 
-        .record-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 24px 16px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-        }
+.flag-list{display:flex;flex-direction:column;gap:6px;}
+.flag-pill{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:8px 10px;border-radius:6px;font-size:13px;line-height:1.4;
+  border:1px solid transparent;
+}
+.flag-pill .sev{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.5px;padding:2px 6px;border-radius:3px;flex-shrink:0;text-transform:uppercase;}
+.flag-pill.amber{background:var(--amber-bg);color:#5a3e00;border-color:var(--amber-rule);}
+.flag-pill.amber .sev{background:var(--amber);color:#fff;}
+.flag-pill.red{background:var(--red-bg);color:var(--red);border-color:var(--red);}
+.flag-pill.red .sev{background:var(--red);color:#fff;}
+.flag-pill.info{background:var(--info-bg);color:var(--info);border-color:var(--info);}
+.flag-pill.info .sev{background:var(--info);color:#fff;}
 
-        .record-btn {
-            width: 90px; height: 90px;
-            border-radius: 50%;
-            background: var(--record);
-            border: none; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            transition: all 0.2s;
-        }
-        .record-btn:active { transform: scale(0.94); }
-        .record-btn.recording { animation: pulse 1.5s ease-in-out infinite; background: #dc2626; }
-        .record-btn svg { width: 32px; height: 32px; fill: white; }
+/* ---------- record button (cockpit) ---------- */
+.cockpit{
+  background:var(--surface);border:1px solid var(--rule);border-radius:14px;
+  padding:18px 16px 22px;display:flex;flex-direction:column;align-items:center;gap:14px;
+  box-shadow:var(--shadow);
+}
+.next-block{text-align:center;width:100%;}
+.next-label{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+.next-row{display:flex;justify-content:center;align-items:baseline;gap:24px;}
+.next-stat .v{font-family:'IBM Plex Mono',monospace;font-size:34px;font-weight:700;color:var(--ink);line-height:1;}
+.next-stat .u{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);margin-left:3px;}
+.next-stat .k{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:4px;}
+.next-edit{display:flex;justify-content:center;gap:8px;margin-top:6px;}
+.next-edit .btn{width:auto;padding:6px 12px;min-height:34px;font-size:12px;}
 
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 var(--record-glow); }
-            70% { box-shadow: 0 0 0 20px rgba(239,68,68,0); }
-            100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
-        }
+.recordbtn{
+  width:148px;height:148px;border-radius:50%;
+  background:var(--record);border:6px solid var(--record-deep);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  position:relative;transition:transform .1s;
+  box-shadow:0 6px 18px var(--record-glow);
+}
+.recordbtn:active{transform:scale(.96);}
+.recordbtn svg{width:54px;height:54px;fill:#fff;}
+.recordbtn.recording{animation:pulseRing 1.4s ease-out infinite;background:var(--record-deep);}
+.recordbtn.processing{background:var(--blueprint);border-color:#0d3258;animation:none;}
+@keyframes pulseRing{
+  0%{box-shadow:0 0 0 0 var(--record-glow);}
+  70%{box-shadow:0 0 0 28px rgba(226,81,31,0);}
+  100%{box-shadow:0 0 0 0 rgba(226,81,31,0);}
+}
+.rec-status{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:var(--muted);text-align:center;letter-spacing:.5px;text-transform:uppercase;min-height:18px;}
+.rec-status.active{color:var(--record);}
+.rec-status.processing{color:var(--blueprint);}
+.rec-timer{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:var(--ink);min-height:26px;}
+.rec-actions{display:flex;flex-direction:column;gap:8px;width:100%;}
+.rec-hint{font-size:12px;color:var(--muted);text-align:center;line-height:1.5;}
+.rec-hint code{font-family:'IBM Plex Mono',monospace;background:var(--surface-2);padding:1px 5px;border-radius:3px;color:var(--ink-2);font-weight:600;}
 
-        .record-status { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--text-dim); text-align: center; }
-        .record-status.active { color: var(--record); }
-        .record-status.processing { color: var(--warn); }
+/* ---------- mini borehole rail ---------- */
+.rail{display:flex;flex-direction:column;gap:0;margin-top:4px;}
+.rail-item{
+  display:grid;grid-template-columns:54px 24px 1fr;gap:10px;align-items:flex-start;
+  padding:8px 0;position:relative;
+}
+.rail-item .depth{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;color:var(--ink);text-align:right;padding-top:1px;}
+.rail-item .marker{
+  width:18px;height:18px;border-radius:50%;
+  background:var(--green);border:3px solid var(--surface);
+  box-shadow:0 0 0 1.5px var(--green);
+  margin-top:1px;justify-self:center;position:relative;z-index:2;
+}
+.rail-item .marker.next{background:var(--record);box-shadow:0 0 0 1.5px var(--record);animation:nextPulse 2s ease-in-out infinite;}
+.rail-item .marker.flagged{background:var(--amber);box-shadow:0 0 0 1.5px var(--amber);}
+.rail-item .marker.empty{background:var(--surface);box-shadow:0 0 0 1.5px var(--rule);}
+@keyframes nextPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.15);}}
+.rail-item:not(:last-child)::before{
+  content:"";position:absolute;left:74px;top:24px;bottom:-8px;width:2px;background:var(--rule);z-index:1;
+}
+.rail-item .body{font-size:13px;line-height:1.4;color:var(--ink-2);}
+.rail-item .body .sn{font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--ink);}
+.rail-item .body .sub{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+.rail-empty{font-size:13px;color:var(--muted);text-align:center;padding:14px 0;font-style:italic;}
 
-        .record-hint { font-size: 12px; color: var(--text-dim); text-align: center; line-height: 1.6; }
-        .record-hint code { font-family: 'IBM Plex Mono', monospace; background: var(--surface2); padding: 1px 5px; border-radius: 4px; color: var(--accent); font-size: 11px; }
+/* ---------- review ---------- */
+.review-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.metric{background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;padding:10px;text-align:center;}
+.metric .k{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.metric .v{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:var(--ink);margin-top:4px;}
+.metric .v.refusal{color:var(--red);}
 
-        .stop-btn {
-            width: 100%; padding: 14px;
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--text);
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 14px; font-weight: 600;
-            cursor: pointer;
-            display: none; align-items: center; justify-content: center; gap: 8px;
-            transition: all 0.15s;
-        }
-        .stop-btn.visible { display: flex; }
-        .stop-btn:active { background: var(--border); }
+.desc-block{
+  background:var(--paper);border-left:4px solid var(--blueprint);
+  border-radius:6px;padding:12px;font-family:'IBM Plex Mono',monospace;font-size:14px;line-height:1.6;color:var(--ink);
+}
+.transcript-block{
+  background:var(--surface-2);border-radius:6px;padding:10px 12px;
+  font-size:13px;color:var(--ink-2);line-height:1.5;font-style:italic;
+}
+.transcript-block .label{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-style:normal;display:block;margin-bottom:4px;}
 
-        .cancel-btn {
-            width: 100%; padding: 13px;
-            background: transparent;
-            border: 1px solid var(--danger);
-            border-radius: 10px;
-            color: var(--danger);
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 13px; font-weight: 600;
-            cursor: pointer; transition: all 0.15s;
-            display: none;
-        }
-        .cancel-btn.visible { display: block; }
-        .cancel-btn:active { background: rgba(248,113,113,0.1); }
+.layer-card{
+  background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px;margin-top:6px;
+}
+.layer-card .lhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.5px;}
+.layer-card .lhead .tag{background:var(--blueprint);color:#fff;padding:2px 6px;border-radius:3px;font-weight:700;}
+.layer-card .lhead input{
+  width:64px;padding:4px 6px;font-size:13px;font-family:'IBM Plex Mono',monospace;font-weight:600;
+  border:1.5px solid var(--rule-strong);border-radius:4px;background:#fff;text-align:center;color:var(--ink);min-height:32px;
+}
+.layer-card .ldesc{font-size:13px;line-height:1.5;color:var(--ink);}
 
-        /* ── RESULT CARD ── */
-        .result-card {
-            background: var(--surface);
-            border: 1px solid var(--accent-dim);
-            border-radius: 12px;
-            padding: 16px;
-            display: none;
-            flex-direction: column;
-            gap: 12px;
-        }
-        .result-card.visible { display: flex; }
+.sticky-confirm{
+  position:sticky;bottom:0;background:linear-gradient(to top,var(--bg) 60%,rgba(238,240,236,0));
+  padding:14px 0 6px;margin-top:4px;
+}
 
-        .result-header { display: flex; align-items: center; justify-content: space-between; }
-        .result-badge { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--accent); text-transform: uppercase; }
-        .sample-id { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text-dim); }
+/* ---------- borehole list ---------- */
+.bh-row{
+  display:flex;align-items:center;gap:10px;padding:14px 12px;
+  background:var(--surface);border:1.5px solid var(--rule);border-radius:8px;
+  cursor:pointer;width:100%;text-align:left;font-family:inherit;color:var(--ink);
+  min-height:56px;
+}
+.bh-row:active{background:var(--surface-2);}
+.bh-row .bn{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:15px;color:var(--blueprint);}
+.bh-row .meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);}
+.bh-row .arrow{margin-left:auto;color:var(--muted);font-size:18px;}
 
-        .description-text {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 14px; color: var(--text);
-            line-height: 1.6; padding: 12px;
-            background: var(--surface2);
-            border-radius: 8px;
-            border-left: 3px solid var(--accent);
-        }
+/* ---------- history ---------- */
+.history-card{
+  background:var(--surface);border:1.5px solid var(--rule);border-radius:8px;padding:12px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.history-card.flagged{border-color:var(--amber-rule);}
+.history-head{display:flex;align-items:center;gap:8px;}
+.history-head .depth{
+  background:var(--ink);color:#fff;padding:6px 10px;border-radius:4px;
+  font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;
+}
+.history-head .sn{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px;color:var(--ink);}
+.history-head .saved{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--green);font-weight:700;text-transform:uppercase;}
+.history-stats{display:flex;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-2);flex-wrap:wrap;}
+.history-stats span b{color:var(--ink);font-weight:700;}
+.history-desc{font-size:13px;line-height:1.5;color:var(--ink-2);}
 
-        .layers-box { display: flex; flex-direction: column; gap: 6px; }
-        .layers-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--text-dim); text-transform: uppercase; }
-        .layer-item {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 12px; color: var(--text);
-            line-height: 1.5; padding: 10px 12px;
-            background: var(--surface2);
-            border-radius: 8px;
-            border-left: 2px solid var(--text-dim);
-        }
-        .layer-item-header { font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; margin-bottom: 4px; text-transform: uppercase; }
+/* ---------- toast ---------- */
+.toast{
+  position:fixed;left:50%;bottom:20px;transform:translate(-50%,120%);
+  background:var(--ink);color:#fff;padding:12px 20px;border-radius:8px;
+  font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;
+  z-index:200;transition:transform .25s cubic-bezier(.34,1.4,.5,1);
+  max-width:90vw;text-align:center;box-shadow:var(--shadow-lg);
+}
+.toast.show{transform:translate(-50%,0);}
+.toast.green{background:var(--green);}
+.toast.red{background:var(--red);}
 
-        /* FIX 1 — blow counts now in a 3-column grid so they show up */
-        .result-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+/* ---------- bottom nav ---------- */
+.bottomnav{
+  position:fixed;left:0;right:0;bottom:0;background:var(--ink);color:#fff;
+  justify-content:space-around;align-items:stretch;
+  padding:6px 8px env(safe-area-inset-bottom);z-index:60;border-top:2px solid #000;
+  display:none;
+}
+.bottomnav.visible{display:flex;}
+.bottomnav button{
+  flex:1;background:transparent;border:0;color:#9aa6ad;
+  display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;
+  cursor:pointer;min-height:54px;
+}
+.bottomnav button.active{color:#fff;}
+.bottomnav button .ic{font-size:20px;line-height:1;}
+.bottomnav button:disabled{opacity:.35;cursor:not-allowed;}
 
-        .result-field { background: var(--surface2); border-radius: 8px; padding: 10px 12px; }
-        .result-field-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; }
-        .result-field-value { font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600; color: var(--text); }
-
-        /* FIX 4 — editable fields section */
-        .edit-section { display: flex; flex-direction: column; gap: 8px; }
-        .edit-section-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--text-dim); text-transform: uppercase; }
-
-        .edit-field { display: flex; flex-direction: column; gap: 4px; }
-        .edit-field label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; }
-        .edit-field textarea, .edit-field input {
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px 12px;
-            color: var(--text);
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 13px;
-            width: 100%;
-            outline: none;
-            resize: vertical;
-            transition: border-color 0.15s;
-        }
-        .edit-field textarea:focus, .edit-field input:focus { border-color: var(--accent); }
-        .edit-field textarea { min-height: 70px; }
-
-        .flags-box { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.3); border-radius: 8px; padding: 10px 12px; }
-        .flags-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 1px; color: var(--danger); text-transform: uppercase; margin-bottom: 6px; }
-        .flag-item { font-size: 12px; color: var(--danger); line-height: 1.5; }
-
-        .transcript-box { background: var(--surface2); border-radius: 8px; padding: 10px 12px; }
-        .transcript-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; }
-        .transcript-text { font-size: 12px; color: var(--text-dim); line-height: 1.5; font-style: italic; }
-
-        /* FIX 4 — re-record button */
-        .rerecord-btn {
-            width: 100%; padding: 13px;
-            background: transparent;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--text-dim);
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 13px; font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        .rerecord-btn:active { border-color: var(--record); color: var(--record); }
-
-        .confirm-btn {
-            width: 100%; padding: 16px;
-            background: var(--accent);
-            border: none; border-radius: 10px;
-            color: #0d1a12;
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 14px; font-weight: 600; letter-spacing: 1px;
-            cursor: pointer; transition: all 0.15s; text-transform: uppercase;
-        }
-        .confirm-btn:active { background: var(--accent-dim); transform: scale(0.98); }
-        .confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .new-btn {
-            width: 100%; padding: 14px;
-            background: transparent;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--text-dim);
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 13px; font-weight: 600;
-            cursor: pointer; transition: all 0.15s;
-            display: none;
-        }
-        .new-btn.visible { display: block; }
-        .new-btn:active { border-color: var(--accent); color: var(--accent); }
-
-        .toast {
-            position: fixed; bottom: 24px;
-            left: 50%; transform: translateX(-50%) translateY(80px);
-            background: var(--accent); color: #0d1a12;
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 13px; font-weight: 600;
-            padding: 12px 24px; border-radius: 100px;
-            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            z-index: 200; white-space: nowrap;
-        }
-        .toast.show { transform: translateX(-50%) translateY(0); }
-
-        .error-box {
-            background: rgba(248,113,113,0.08);
-            border: 1px solid rgba(248,113,113,0.3);
-            border-radius: 8px; padding: 12px;
-            font-size: 13px; color: var(--danger); display: none;
-        }
-        .error-box.visible { display: block; }
-
-        .phase-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-        .phase-card.hidden { display: none; }
-        .card.hidden { display: none; }
-
-        .phase-badge { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: var(--accent); text-transform: uppercase; margin-bottom: 2px; }
-        .phase-subtitle { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
-
-        .action-btn {
-            width: 100%; padding: 14px;
-            background: var(--accent);
-            border: none; border-radius: 10px;
-            color: #0d1a12;
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 13px; font-weight: 600; letter-spacing: 1px;
-            cursor: pointer; transition: all 0.15s; text-transform: uppercase;
-            margin-top: 4px;
-        }
-        .action-btn:active { background: var(--accent-dim); transform: scale(0.98); }
-        .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .context-bar {
-            background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 8px; padding: 10px 14px;
-            font-family: 'IBM Plex Mono', monospace; font-size: 11px;
-            color: var(--text-mid); display: none; gap: 16px; flex-wrap: wrap;
-        }
-        .context-bar.visible { display: flex; }
-        .context-item span { color: var(--accent); }
-
-        .req { color: var(--danger); }
-        .hidden { display: none !important; }
-    </style>
+@media (min-width:600px){
+  main{padding:20px 18px 90px;}
+}
+</style>
 </head>
 <body>
 
-<header>
-    <div class="logo">GeoLog<span>.ai</span></div>
-    <div class="status-dot"></div>
-</header>
+<!-- ============= APP BAR ============= -->
+<div class="appbar">
+  <div class="brand">GeoLog<span class="dot">●</span>AI</div>
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-screen="setup" id="tab-setup">Setup</button>
+    <button class="tab" data-screen="log" id="tab-log" disabled>Log</button>
+    <button class="tab" data-screen="history" id="tab-history" disabled>Log Sheet</button>
+  </div>
+</div>
+
+<!-- ============= STICKY CONTEXT STRIP ============= -->
+<div class="contextstrip" id="contextStrip">
+  <div class="row">
+    <span class="pill" id="ctxProject">—</span>
+    <span class="pill bp" id="ctxBorehole">—</span>
+    <button class="change" onclick="changeBorehole()">Change BH</button>
+    <button class="change" onclick="changeProject()">Change Project</button>
+  </div>
+  <div class="stats" id="ctxStats">
+    <span><b id="ctxCount">0</b> samples</span>
+    <span>last saved <b id="ctxLast">—</b></span>
+    <span>next <b id="ctxNext">—</b></span>
+  </div>
+</div>
 
 <main>
 
-    <!-- STEP 1: PROJECT MODE SELECT -->
-    <div class="phase-card" id="projectModeCard">
-        <div class="phase-badge">Step 1 — Project</div>
-        <div class="input-row">
-            <button class="action-btn" onclick="showNewProject()" style="margin-top:0">+ New Project</button>
-            <button class="action-btn" onclick="showLoadProject()" style="margin-top:0; background:var(--surface2); color:var(--accent); border:1px solid var(--accent);">Load Existing</button>
-        </div>
+<!-- ============================================================
+     SCREEN 1 — SETUP (project + borehole)
+     ============================================================ -->
+<section class="screen active" id="screen-setup">
+
+  <!-- continue last session -->
+  <div class="card" id="continueCard" style="display:none;">
+    <div class="card-head">
+      <div class="card-title">Continue Last Session</div>
+    </div>
+    <div id="continueBody" style="margin-bottom:10px;"></div>
+    <button class="btn btn-primary" onclick="continueLastSession()">Continue →</button>
+    <button class="btn-link" onclick="clearLastSession()" style="display:block;margin:8px auto 0;">Start fresh instead</button>
+  </div>
+
+  <!-- step 1: project -->
+  <div class="card" id="projectModeCard">
+    <div class="card-head">
+      <div class="card-title">Step 1 — Project</div>
+      <div class="card-sub">Pick or create</div>
+    </div>
+    <div class="seg" id="projectSeg">
+      <button class="active" onclick="setProjectMode('new')">+ New</button>
+      <button onclick="setProjectMode('load')">Load Existing</button>
     </div>
 
-    <!-- NEW PROJECT FORM -->
-    <div class="phase-card hidden" id="projectCard">
-        <div class="phase-badge">New Project</div>
-        <div class="input-group">
-            <label>Project No <span class="req">*</span></label>
-            <input type="text" id="project_no" placeholder="Project Number">
+    <div id="newProjectForm" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
+      <div class="field">
+        <label>Project No <span class="req">*</span></label>
+        <input type="text" id="project_no" placeholder="25-1021" autocomplete="off">
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Client <span class="req">*</span></label>
+          <input type="text" id="client" placeholder="Client name">
         </div>
-        <div class="input-row">
-            <div class="input-group">
-                <label>Client <span class="req">*</span></label>
-                <input type="text" id="client" placeholder="Client Name">
-            </div>
-            <div class="input-group">
-                <label>Project Name</label>
-                <input type="text" id="project_name" placeholder="Site Name">
-            </div>
+        <div class="field">
+          <label>Project Name</label>
+          <input type="text" id="project_name" placeholder="Site name">
         </div>
-        <div class="input-group">
-            <label>Location</label>
-            <input type="text" id="location" placeholder="Address / Coordinates">
-        </div>
-        <div class="input-row" style="margin-top:4px">
-            <button class="action-btn" style="background:var(--surface2);color:var(--text-dim);border:1px solid var(--border);margin-top:0" onclick="showProjectMode()">← Back</button>
-            <button class="action-btn" id="createProjectBtn" onclick="createProject()" style="margin-top:0">Create Project →</button>
-        </div>
+      </div>
+      <div class="field">
+        <label>Location</label>
+        <input type="text" id="location" placeholder="Address / coords">
+      </div>
+      <button class="btn btn-primary" id="createProjectBtn" onclick="createProject()">Create Project →</button>
     </div>
 
-    <!-- LOAD EXISTING PROJECT -->
-    <div class="phase-card hidden" id="loadProjectCard">
-        <div class="phase-badge">Load Project</div>
-        <div class="input-group">
-            <label>Project No. <span class="req">*</span></label>
-            <input type="text" id="load_project_no" placeholder="25-1021">
-        </div>
-        <div class="input-row" style="margin-top:4px">
-            <button class="action-btn" style="background:var(--surface2);color:var(--text-dim);border:1px solid var(--border);margin-top:0" onclick="showProjectMode()">← Back</button>
-            <button class="action-btn" id="loadProjectBtn" onclick="loadProject()" style="margin-top:0">Load →</button>
-        </div>
+    <div id="loadProjectForm" style="margin-top:12px;display:none;flex-direction:column;gap:10px;">
+      <div class="field">
+        <label>Project No <span class="req">*</span></label>
+        <input type="text" id="load_project_no" placeholder="25-1021" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="loadProjectBtn" onclick="loadProject()">Load Project →</button>
     </div>
 
-    <!-- STEP 2: BOREHOLE MODE SELECT -->
-    <div class="phase-card hidden" id="boreholeModeCard">
-        <div class="phase-badge">Step 2 — Borehole</div>
-        <div class="input-row">
-            <button class="action-btn" onclick="showNewBorehole()" style="margin-top:0">+ New Borehole</button>
-            <button class="action-btn" onclick="showBoreholeList()" style="margin-top:0; background:var(--surface2); color:var(--accent); border:1px solid var(--accent);">Load Existing</button>
-        </div>
-        <button class="action-btn" onclick="changeProject()" style="background:transparent;color:var(--text-dim);border:1px solid var(--border);margin-top:4px">← Change Project</button>
+    <div class="alert red hidden" id="setupErr" style="margin-top:10px;"><span class="icon">✕</span><span id="setupErrMsg"></span></div>
+  </div>
+
+  <!-- step 2: borehole -->
+  <div class="card" id="boreholeModeCard" style="display:none;">
+    <div class="card-head">
+      <div class="card-title">Step 2 — Borehole</div>
+      <div class="card-sub" id="bhProjectLabel">—</div>
+    </div>
+    <div class="seg" id="boreholeSeg">
+      <button class="active" onclick="setBoreholeMode('new')">+ New</button>
+      <button onclick="setBoreholeMode('load')">Load Existing</button>
     </div>
 
-    <!-- NEW BOREHOLE FORM -->
-    <div class="phase-card hidden" id="boreholeCard">
-        <div class="phase-badge">New Borehole</div>
-        <div class="input-row">
-            <div class="input-group">
-                <label>Borehole No <span class="req">*</span></label>
-                <input type="text" id="borehole_no" placeholder="BH Number">
-            </div>
-            <div class="input-group">
-                <label>Technician <span class="req">*</span></label>
-                <input type="text" id="tech" placeholder="Name">
-            </div>
+    <div id="newBoreholeForm" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
+      <div class="grid-2">
+        <div class="field">
+          <label>Borehole No <span class="req">*</span></label>
+          <input type="text" id="borehole_no" placeholder="BH-1">
         </div>
-        <div class="input-row">
-            <div class="input-group">
-                <label>Drilling Method</label>
-                <input type="text" id="drilling_method" placeholder="Hollow Stem Auger">
-            </div>
-            <div class="input-group">
-                <label>OD Augers</label>
-                <input type="text" id="od_augers" placeholder="203mm">
-            </div>
+        <div class="field">
+          <label>Technician <span class="req">*</span></label>
+          <input type="text" id="tech" placeholder="Name">
         </div>
-        <div class="input-row">
-            <div class="input-group">
-                <label>Date Started</label>
-                <input type="text" id="date_started" placeholder="2025-04-04">
-            </div>
-            <div class="input-group">
-                <label>Driller</label>
-                <input type="text" id="driller" placeholder="Drilling Co.">
-            </div>
-        </div>
-        <div class="input-row">
-            <div class="input-group">
-                <label>Weather</label>
-                <input type="text" id="weather" placeholder="Cloudy">
-            </div>
-            <div class="input-group">
-                <label>Drilling Rig</label>
-                <input type="text" id="drilling_rig" placeholder="Rig #2">
-            </div>
-        </div>
-        <div class="input-row">
-            <div class="input-group">
-                <label>Hammer Weight</label>
-                <input type="text" id="hammer_weight" placeholder="140 lbs">
-            </div>
-            <div class="input-group">
-                <label>Hammer Drop</label>
-                <input type="text" id="hammer_drop" placeholder="30 in">
-            </div>
-        </div>
-        <div class="input-row" style="margin-top:4px">
-            <button class="action-btn" style="background:var(--surface2);color:var(--text-dim);border:1px solid var(--border);margin-top:0" onclick="showBoreholeMode()">← Back</button>
-            <button class="action-btn" id="createBoreholeBtn" onclick="createBorehole()" style="margin-top:0">Start Borehole →</button>
-        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Drilling Method</label><input type="text" id="drilling_method" placeholder="HSA"></div>
+        <div class="field"><label>OD Augers</label><input type="text" id="od_augers" placeholder="203mm"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Date Started</label><input type="text" id="date_started" placeholder="YYYY-MM-DD"></div>
+        <div class="field"><label>Driller</label><input type="text" id="driller" placeholder="Drilling Co."></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Weather</label><input type="text" id="weather" placeholder="Cloudy"></div>
+        <div class="field"><label>Drilling Rig</label><input type="text" id="drilling_rig" placeholder="Rig #2"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Hammer Weight</label><input type="text" id="hammer_weight" placeholder="140 lbs"></div>
+        <div class="field"><label>Hammer Drop</label><input type="text" id="hammer_drop" placeholder="30 in"></div>
+      </div>
+      <button class="btn btn-primary" id="createBoreholeBtn" onclick="createBorehole()">Start Borehole →</button>
+      <button class="btn-link" onclick="changeProject()" style="margin:0 auto;">← Change project</button>
     </div>
 
-    <!-- EXISTING BOREHOLE LIST -->
-    <div class="phase-card hidden" id="boreholeListCard">
-        <div class="phase-badge">Select Borehole</div>
-        <div id="boreholeListItems" style="display:flex;flex-direction:column;gap:8px;"></div>
-        <button class="action-btn" style="background:var(--surface2);color:var(--text-dim);border:1px solid var(--border)" onclick="showBoreholeMode()">← Back</button>
+    <div id="loadBoreholeForm" style="margin-top:12px;display:none;flex-direction:column;gap:8px;">
+      <div id="boreholeListItems" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <button class="btn-link" onclick="changeProject()" style="margin:6px auto 0;">← Change project</button>
     </div>
 
-    <!-- ACTIVE CONTEXT BAR (shows project + borehole once set) -->
-    <div class="context-bar" id="contextBar">
-        <div class="context-item">Project: <span id="ctxProject">—</span></div>
-        <div class="context-item">BH: <span id="ctxBorehole">—</span></div>
-        <button onclick="changeBorehole()" style="margin-left:auto;background:transparent;border:none;color:var(--text-dim);font-family:IBM Plex Mono,monospace;font-size:11px;cursor:pointer;padding:0;">← Change BH</button>
-        <button onclick="changeProject()" style="background:transparent;border:none;color:var(--text-dim);font-family:IBM Plex Mono,monospace;font-size:11px;cursor:pointer;padding:0;">← Change Project</button>
+    <div class="alert red hidden" id="bhErr" style="margin-top:10px;"><span class="icon">✕</span><span id="bhErrMsg"></span></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SCREEN 2 — ACTIVE LOGGING (record + review)
+     ============================================================ -->
+<section class="screen" id="screen-log">
+
+  <!-- error banner -->
+  <div class="alert red hidden" id="logErr"><span class="icon">✕</span><span id="logErrMsg"></span></div>
+
+  <!-- duplicate / blocker for this depth or sample -->
+  <div class="alert red hidden" id="dupBlock"><span class="icon">✕</span><span id="dupMsg"></span></div>
+
+  <!-- main cockpit (next sample + record) -->
+  <div class="cockpit" id="cockpitCard">
+    <div class="next-block">
+      <div class="next-label">Next Sample</div>
+      <div class="next-row">
+        <div class="next-stat">
+          <div><span class="v" id="dispDepth">—</span><span class="u">ft</span></div>
+          <div class="k">Depth</div>
+        </div>
+        <div class="next-stat">
+          <div><span class="v" id="dispSampleNo">—</span></div>
+          <div class="k">SS-#</div>
+        </div>
+      </div>
+      <div class="next-edit">
+        <button class="btn btn-ghost" onclick="openNextEditor()">Edit depth / #</button>
+        <button class="btn btn-ghost" onclick="openIncrementEditor()">+<span id="dispIncrement">2.5</span> ft</button>
+      </div>
     </div>
 
-    <!-- SAMPLE INFO INPUTS (hidden until borehole is active) -->
-    <div class="card hidden" id="sampleInfoCard">
-        <div class="card-label">Sample Info</div>
-        <div class="input-row">
-            <div class="input-group">
-                <label>Depth (ft) <span class="req">*</span></label>
-                <input type="number" id="depth_ft" placeholder="5.0" step="0.5" min="0">
-            </div>
-            <div id="depthWarning" style="display:none; margin-top:6px; font-size:12px; color:var(--danger); background:rgba(248,113,113,0.08); border:1px solid rgba(248,113,113,0.3); border-radius:6px; padding:8px 10px;">
-                <span id="depthWarningText">✕ A sample already exists at this depth in this borehole. Please enter a different depth.</span>
-                <span style="display:block; margin-top:4px;">
-                    <button onclick="document.getElementById('depth_ft').value=''; document.getElementById('sample_no').value=''; hideDepthWarning();" style="font-size:11px; padding:2px 8px; cursor:pointer;">Clear</button>
-                </span>
-            </div>
-            <div class="input-group">
-                <label>Sample No. <span class="req">*</span></label>
-                <input type="number" id="sample_no" placeholder="1" min="1" value="1">
-            </div>
-        </div>
+    <button class="recordbtn" id="recordBtn" onclick="onRecordTap()" aria-label="Record sample">
+      <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+    </button>
+    <div class="rec-status" id="recStatus">Tap to record</div>
+    <div class="rec-timer" id="recTimer"></div>
+
+    <div class="rec-actions">
+      <button class="btn btn-ghost" id="stopBtn" onclick="stopRecording()" style="display:none;">⏹ Stop &amp; Process</button>
+      <button class="btn btn-danger" id="cancelBtn" onclick="cancelProcessing()" style="display:none;">✕ Cancel Upload</button>
+      <button class="btn btn-warn" id="retryUploadBtn" onclick="retryUpload()" style="display:none;">↻ Retry Upload (audio kept)</button>
     </div>
 
-    <!-- RECORD SECTION -->
-    <div class="record-card hidden" id="recordCard">
-        <div class="record-btn" id="recordBtn" onclick="toggleRecord()">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-            </svg>
-        </div>
-        <div class="record-status" id="recordStatus">Tap to record</div>
-        <div class="record-hint">
-            Say: <code>description</code> → soil → <code>blows</code> → counts (use <code>50 for 3</code> for refusal) → <code>recovery</code> → inches → <code>comments</code>
-        </div>
-        <button class="stop-btn" id="stopBtn" onclick="stopRecording()">⏹ &nbsp;Stop Recording</button>
-        <button class="cancel-btn" id="cancelBtn" onclick="cancelProcessing()">✕ &nbsp;Cancel</button>
+    <!-- Persistent interruption banner — only shown when a recording was killed by lock / call / app switch -->
+    <div class="alert amber hidden" id="interruptBanner" style="width:100%;align-items:center;">
+      <span class="icon">⚠</span>
+      <span style="flex:1;">Recording interrupted (phone locked, call, or app switched). Audio discarded — please re-record. Keep this screen open and the phone unlocked.</span>
+      <button onclick="hideAlert('interruptBanner')" aria-label="Dismiss" style="background:transparent;border:0;color:inherit;font-size:18px;font-weight:700;padding:4px 10px;min-height:32px;cursor:pointer;line-height:1;">✕</button>
     </div>
 
-    <!-- ERROR -->
-    <div class="error-box" id="errorBox"></div>
+    <!-- Live tip while recording -->
+    <div class="alert info hidden" id="keepOpenHint" style="width:100%;"><span class="icon">●</span><span>Keep this screen open and the phone unlocked while recording. Locking, calls, or switching apps will discard the recording.</span></div>
 
-    <!-- RESULT CARD -->
-    <div class="result-card" id="resultCard">
-        <div class="result-header">
-            <div class="result-badge">✓ Entry Ready</div>
-            <div class="sample-id" id="sampleId">SS-1 @ 0.00m</div>
-        </div>
+    <div class="rec-hint">
+      Say: <code>description</code> → soil → <code>blows</code> → counts (use <code>50 for 3</code> for refusal) → <code>recovery</code> → inches → <code>comments</code>
+    </div>
+  </div>
 
-        <!-- Formatted description -->
-        <div class="description-text" id="descriptionText"></div>
+  <!-- inline next-sample editor (depth + sample no) -->
+  <div class="card" id="nextEditor" style="display:none;">
+    <div class="card-head"><div class="card-title">Next Sample Inputs</div></div>
+    <div class="grid-2">
+      <div class="field">
+        <label>Depth (ft) <span class="req">*</span></label>
+        <input type="number" id="depth_ft" step="0.5" min="0" inputmode="decimal">
+      </div>
+      <div class="field">
+        <label>Sample No <span class="req">*</span></label>
+        <input type="number" id="sample_no" min="1" inputmode="numeric">
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="closeNextEditor()" style="margin-top:10px;">Done</button>
+  </div>
 
-        <!-- Per-layer breakdown (split-layer samples only) -->
-        <div class="layers-box" id="layersBox" style="display:none">
-            <div class="layers-label">Layers</div>
-            <div id="layersList"></div>
-        </div>
+  <!-- inline increment editor -->
+  <div class="card" id="incrementEditor" style="display:none;">
+    <div class="card-head"><div class="card-title">Depth Increment</div><div class="card-sub">Auto-applied after each save</div></div>
+    <div class="seg" id="incSeg" style="margin-bottom:10px;">
+      <button onclick="setIncrement(2.5)">2.5 ft</button>
+      <button onclick="setIncrement(5)">5 ft</button>
+      <button onclick="document.getElementById('customInc').focus()">Custom</button>
+    </div>
+    <div class="field">
+      <label>Custom (ft)</label>
+      <input type="number" id="customInc" step="0.5" min="0" inputmode="decimal" onchange="setIncrement(parseFloat(this.value))">
+    </div>
+    <button class="btn btn-primary" onclick="closeIncrementEditor()" style="margin-top:10px;">Done</button>
+  </div>
 
-        <!--
-            FIX 1 — Blow counts added as third field in the grid.
-            In displayResult(), data.blow_counts is joined as "12 / 17 / 19 / 23"
-            and shown in the blowCountsDisplay element below.
+  <!-- mini borehole rail -->
+  <div class="card tight" id="railCard">
+    <div class="card-head">
+      <div class="card-title">Borehole Progress</div>
+      <button class="btn-link" onclick="showScreen('history')">View Log Sheet →</button>
+    </div>
+    <div class="rail" id="railList"><div class="rail-empty">No samples logged yet — record the first one above.</div></div>
+  </div>
 
-            FIX 2 — Recovery now shows inches only (e.g. "16.0 in").
-            Previously showed "16.0\" / 406mm" which mixes units.
-            Changed in displayResult() — recovery_mm is no longer shown.
-        -->
-        <div class="result-grid">
-            <div class="result-field">
-                <div class="result-field-label">N-Value</div>
-                <div class="result-field-value" id="nValueDisplay">—</div>
-            </div>
-            <div class="result-field">
-                <div class="result-field-label">Recovery (in)</div>
-                <!-- FIX 2 — label says "in" and value shows inches only -->
-                <div class="result-field-value" id="recoveryDisplay">—</div>
-            </div>
-            <div class="result-field">
-                <div class="result-field-label">Blow Counts</div>
-                <!-- FIX 1 — new element for blow counts -->
-                <div class="result-field-value" id="blowCountsDisplay" style="font-size:12px;">—</div>
-            </div>
-        </div>
-
-        <!-- Flags -->
-        <div class="flags-box" id="flagsBox" style="display:none">
-            <div class="flags-label">⚠ Flags — Review Required</div>
-            <div id="flagsList"></div>
-        </div>
-
-        <!--
-            FIX 4 — Editable fields added below the read-only output.
-            Tech can edit description, comments, and blow counts before confirming.
-            Values in these fields are what gets sent to /confirm-sample.
-        -->
-        <div class="edit-section">
-            <div class="edit-section-label">Edit Before Saving</div>
-
-            <div class="edit-field">
-                <label>Description</label>
-                <textarea id="editDescription"></textarea>
-            </div>
-
-            <div class="edit-field">
-                <label>Comments</label>
-                <input type="text" id="editComments" placeholder="Optional">
-            </div>
-
-            <div class="edit-field">
-                <label>Blow Counts (comma separated — use 50/3 for refusal over 3")</label>
-                <input type="text" id="editBlowCounts" placeholder="e.g. 12, 17, 19, 23 or 12, 17, 50/3">
-            </div>
-
-            <div class="edit-field">
-                <label>Recovery (inches)</label>
-                <input type="number" id="editRecovery" placeholder="e.g. 14.5" step="0.5" min="0" max="24">
-            </div>
-        </div>
-
-        <!-- Transcript for reference -->
-        <div class="transcript-box">
-            <div class="transcript-label">Transcript</div>
-            <div class="transcript-text" id="transcriptText"></div>
-        </div>
-
-        <!--
-            FIX 4 — Re-record button added above Confirm.
-            Clicking this resets the result card and returns to the record state
-            without clearing depth/pen depths/sample number inputs.
-        -->
-        <button class="rerecord-btn" onclick="reRecord()">🎤 &nbsp;Re-record</button>
-        <button class="rerecord-btn" id="recalcBtn" onclick="recalculate()" style="color: var(--warn); border-color: var(--warn);">↻ &nbsp;Recalculate</button>
-        <div id="recalcHint" style="display:none; font-size:12px; color:var(--warn); margin-top:4px;">⚠ Changes detected — click ↻ Recalculate to update</div>
-
-        <button class="confirm-btn" id="confirmBtn" onclick="confirmSample()">
-            ✓ &nbsp;Confirm & Save
-        </button>
+  <!-- ============= REVIEW CARD (after draft returns) ============= -->
+  <div class="card" id="reviewCard" style="display:none;">
+    <div class="card-head">
+      <div class="card-title" style="color:var(--green);">✓ Draft Ready — Review</div>
+      <div class="card-sub mono" id="sampleId">SS-1 @ 0.00m</div>
     </div>
 
-    <!-- NEW SAMPLE -->
-    <button class="new-btn" id="newBtn" onclick="resetForNewSample()">+ New Sample</button>
+    <div class="desc-block" id="descriptionText">—</div>
+
+    <!-- per-layer (split-layer samples only) -->
+    <div id="layersBox" style="display:none;">
+      <div class="card-title" style="margin-top:10px;margin-bottom:6px;">Layers</div>
+      <div id="layersList"></div>
+    </div>
+
+    <div class="review-grid" style="margin-top:12px;">
+      <div class="metric"><div class="k">N-Value</div><div class="v" id="nValueDisplay">—</div></div>
+      <div class="metric"><div class="k">Recovery</div><div class="v" id="recoveryDisplay">—</div></div>
+      <div class="metric"><div class="k">Blow Counts</div><div class="v" id="blowCountsDisplay" style="font-size:13px;">—</div></div>
+    </div>
+
+    <!-- flags -->
+    <div id="flagsBox" style="display:none;margin-top:12px;">
+      <div class="card-title" style="margin-bottom:6px;">Flags</div>
+      <div class="flag-list" id="flagsList"></div>
+    </div>
+
+    <!-- editable -->
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;">
+      <div class="card-title">Edit Before Saving</div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="editDescription"></textarea>
+      </div>
+      <div class="field">
+        <label>Comments</label>
+        <input type="text" id="editComments" placeholder="Optional">
+      </div>
+      <div class="field">
+        <label>Blow Counts <span class="hint">(comma sep · use 50/3 for refusal)</span></label>
+        <input type="text" id="editBlowCounts" placeholder="12, 17, 19, 23">
+      </div>
+      <div class="field">
+        <label>Recovery (in)</label>
+        <input type="number" id="editRecovery" step="0.5" min="0" max="24" inputmode="decimal">
+      </div>
+    </div>
+
+    <div class="alert amber hidden" id="recalcHint" style="margin-top:10px;"><span class="icon">⚠</span>Changes detected — tap <b>Recalculate</b> to update.</div>
+
+    <!-- transcript -->
+    <div class="transcript-block" style="margin-top:12px;">
+      <span class="label">Transcript</span>
+      <span id="transcriptText"></span>
+    </div>
+
+    <!-- review actions -->
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn-ghost" onclick="reRecord()">🎤 Re-record</button>
+      <button class="btn btn-warn" id="recalcBtn" onclick="recalculate()">↻ Recalculate</button>
+    </div>
+
+    <div class="sticky-confirm">
+      <button class="btn btn-confirm" id="confirmBtn" onclick="confirmSample()">✓ Confirm &amp; Save</button>
+    </div>
+  </div>
+
+  <!-- New Sample button (after save) -->
+  <button class="btn btn-primary" id="newBtn" onclick="resetForNewSample()" style="display:none;">+ Log Next Sample</button>
+
+</section>
+
+<!-- ============================================================
+     SCREEN 3 — HISTORY / LOG SHEET
+     ============================================================ -->
+<section class="screen" id="screen-history">
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Borehole Log Sheet</div>
+      <div class="card-sub" id="historyMeta">—</div>
+    </div>
+    <div id="historyList" style="display:flex;flex-direction:column;gap:10px;">
+      <div class="rail-empty">No samples saved yet for this borehole.</div>
+    </div>
+  </div>
+
+  <div class="card" id="exportCard" style="display:none;">
+    <div class="card-head"><div class="card-title">Export</div></div>
+    <button class="btn btn-primary" id="exportPdfBtn" disabled>📄 Generate Borehole Log PDF</button>
+    <div class="card-sub" style="margin-top:8px;text-align:center;">PDF export coming soon — backend endpoint not yet available.</div>
+  </div>
+</section>
 
 </main>
 
-<div class="toast" id="toast">✓ Saved to log</div>
+<!-- ============= TOAST ============= -->
+<div class="toast" id="toast"></div>
+
+<!-- ============= BOTTOM NAV (after borehole active) ============= -->
+<nav class="bottomnav" id="bottomnav">
+  <button data-screen="log" id="bn-log" onclick="showScreen('log')"><span class="ic">🎤</span>Record</button>
+  <button data-screen="history" id="bn-history" onclick="showScreen('history')"><span class="ic">📋</span>Log Sheet</button>
+  <button data-screen="setup" id="bn-setup" onclick="showScreen('setup')"><span class="ic">⚙</span>Setup</button>
+</nav>
 
 <script>
-    const API_BASE = window.location.origin;
-
-    let mediaRecorder = null;
-    let audioChunks = [];
-    let isRecording = false;
-    let currentSampleData = null;
-    let currentProjectId = null;
-    let currentBoreholeId = null;
-    let currentAbortController = null;
-
-    // Snapshots — set in displayResult(), used by recalculate() to detect what changed
-    let originalBlowCounts = '';
-    let originalRecovery   = '';
-
-    // ── Navigation helpers ──
-    function showProjectMode() {
-        document.getElementById('projectModeCard').classList.remove('hidden');
-        document.getElementById('projectCard').classList.add('hidden');
-        document.getElementById('loadProjectCard').classList.add('hidden');
-        document.getElementById('boreholeModeCard').classList.add('hidden');
-    }
-    function showNewProject() {
-        document.getElementById('projectModeCard').classList.add('hidden');
-        document.getElementById('projectCard').classList.remove('hidden');
-    }
-    function showLoadProject() {
-        document.getElementById('projectModeCard').classList.add('hidden');
-        document.getElementById('loadProjectCard').classList.remove('hidden');
-    }
-    function showBoreholeMode() {
-        hideError();
-        hideDepthWarning();
-        document.getElementById('boreholeModeCard').classList.remove('hidden');
-        document.getElementById('boreholeCard').classList.add('hidden');
-        document.getElementById('boreholeListCard').classList.add('hidden');
-    }
-    function showNewBorehole() {
-        hideError();
-        document.getElementById('boreholeModeCard').classList.add('hidden');
-        document.getElementById('boreholeCard').classList.remove('hidden');
-    }
-    async function showBoreholeList() {
-        document.getElementById('boreholeModeCard').classList.add('hidden');
-        const listCard = document.getElementById('boreholeListCard');
-        const itemsEl = document.getElementById('boreholeListItems');
-        listCard.classList.remove('hidden');
-        itemsEl.innerHTML = '<div style="color:var(--text-dim);font-size:12px;font-family:IBM Plex Mono,monospace">Loading...</div>';
-
-        try {
-            const response = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes`);
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.detail || 'Failed to load boreholes');
-
-            if (result.boreholes.length === 0) {
-                itemsEl.innerHTML = '<div style="color:var(--text-dim);font-size:12px;font-family:IBM Plex Mono,monospace">No boreholes found for this project.</div>';
-                return;
-            }
-
-            itemsEl.innerHTML = result.boreholes.map(bh => `
-                <button onclick="selectBorehole('${bh.id}','${bh.borehole_no}')"
-                    style="width:100%;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);
-                    border-radius:8px;color:var(--text);font-family:IBM Plex Mono,monospace;font-size:13px;
-                    text-align:left;cursor:pointer;">
-                    <span style="color:var(--accent);font-weight:600">${bh.borehole_no}</span>
-                    <span style="color:var(--text-dim);font-size:11px;margin-left:8px">${bh.date_started || ''} · ${bh.drilling_method || ''}</span>
-                </button>`).join('');
-        } catch (err) {
-            showError('Could not load boreholes: ' + err.message);
-            showBoreholeMode();
-        }
-    }
-    function selectBorehole(id, no) {
-        currentBoreholeId = id;
-        document.getElementById('ctxBorehole').textContent = no;
-        document.getElementById('boreholeListCard').classList.add('hidden');
-        document.getElementById('contextBar').classList.add('visible');
-        document.getElementById('sampleInfoCard').classList.remove('hidden');
-        document.getElementById('recordCard').classList.remove('hidden');
-    }
-
-    function changeProject() {
-        hideError();
-        hideDepthWarning();
-        currentProjectId = null;
-        currentBoreholeId = null;
-        document.getElementById('ctxProject').textContent = '—';
-        document.getElementById('ctxBorehole').textContent = '—';
-        document.getElementById('contextBar').classList.remove('visible');
-        document.getElementById('sampleInfoCard').classList.add('hidden');
-        document.getElementById('recordCard').classList.add('hidden');
-        document.getElementById('resultCard').classList.remove('visible');
-        document.getElementById('newBtn').classList.remove('visible');
-        document.getElementById('boreholeModeCard').classList.add('hidden');
-        document.getElementById('boreholeCard').classList.add('hidden');
-        document.getElementById('boreholeListCard').classList.add('hidden');
-        document.getElementById('load_project_no').value = '';
-        const loadBtn = document.getElementById('loadProjectBtn');
-        loadBtn.disabled = false;
-        loadBtn.textContent = 'Load →';
-        const createProjectBtn = document.getElementById('createProjectBtn');
-        createProjectBtn.disabled = false;
-        createProjectBtn.textContent = 'Create Project →';
-        currentSampleData = null;
-        hideError();
-        resetStatus();
-        showProjectMode();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function changeBorehole() {
-        hideError();
-        hideDepthWarning();
-        currentBoreholeId = null;
-        document.getElementById('ctxBorehole').textContent = '—';
-        document.getElementById('sampleInfoCard').classList.add('hidden');
-        document.getElementById('recordCard').classList.add('hidden');
-        document.getElementById('resultCard').classList.remove('visible');
-        document.getElementById('newBtn').classList.remove('visible');
-        document.getElementById('contextBar').classList.remove('visible');
-        currentSampleData = null;
-        hideError();
-        resetStatus();
-        showBoreholeMode();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    // ── Load existing project ──
-    async function loadProject() {
-        const project_no = document.getElementById('load_project_no').value.trim();
-        if (!project_no) { showError('Enter a project number.'); return; }
-        hideError();
-
-        const btn = document.getElementById('loadProjectBtn');
-        btn.disabled = true;
-        btn.textContent = 'Loading...';
-
-        try {
-            const response = await fetch(`${API_BASE}/projects?project_no=${encodeURIComponent(project_no)}`);
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.detail || 'Not found');
-
-            currentProjectId = result.project.id;
-            document.getElementById('ctxProject').textContent = result.project.project_no;
-            document.getElementById('loadProjectCard').classList.add('hidden');
-            document.getElementById('boreholeModeCard').classList.remove('hidden');
-
-        } catch (err) {
-            showError('Project error: ' + err.message);
-            
-        } finally{
-            btn.disabled = false;
-            btn.textContent = 'Load →';
-        }
-    }
-
-    // ── Phase 1: Create Project ──
-    async function createProject() {
-        const project_no  = document.getElementById('project_no').value.trim();
-        const client       = document.getElementById('client').value.trim();
-        const project_name = document.getElementById('project_name').value.trim();
-        const location     = document.getElementById('location').value.trim();
-
-        if (!project_no || !client) {
-            showError('Project No. and Client are required (*).');
-            return;
-        }
-        hideError();
-
-        const btn = document.getElementById('createProjectBtn');
-        btn.disabled = true;
-        btn.textContent = 'Creating...';
-
-        try {
-            const response = await fetch(`${API_BASE}/projects`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ project_no, client, project_name, location })
-            });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.detail || 'Create failed');
-
-            currentProjectId = result.project_id;
-            document.getElementById('ctxProject').textContent = project_no;
-
-            // Advance to borehole phase
-            document.getElementById('projectCard').classList.add('hidden');
-            document.getElementById('boreholeModeCard').classList.remove('hidden');
-
-        } catch (err) {
-            showError('Project error: ' + err.message);
-            
-        } finally{
-            btn.disabled = false;
-            btn.textContent = 'Create Project →';
-        }
-    }
-
-    // ── Phase 2: Create Borehole ──
-    async function createBorehole() {
-        const borehole_no      = document.getElementById('borehole_no').value.trim();
-        const tech             = document.getElementById('tech').value.trim();
-        const drilling_method  = document.getElementById('drilling_method').value.trim();
-        const od_augers        = document.getElementById('od_augers').value.trim();
-        const date_started     = document.getElementById('date_started').value.trim();
-        const driller          = document.getElementById('driller').value.trim();
-        const weather          = document.getElementById('weather').value.trim() || null;
-        const drilling_rig     = document.getElementById('drilling_rig').value.trim();
-        const hammer_weight    = document.getElementById('hammer_weight').value.trim() || null;
-        const hammer_drop      = document.getElementById('hammer_drop').value.trim() || null;
-
-        if (!borehole_no || !tech) {
-            showError('Borehole No. and Technician are required (*).');
-            return;
-        }
-        hideError();
-
-        const btn = document.getElementById('createBoreholeBtn');
-        btn.disabled = true;
-        btn.textContent = 'Creating...';
-
-        try {
-            const response = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ borehole_no, tech, drilling_method, od_augers, date_started, driller, weather, drilling_rig, hammer_weight, hammer_drop })
-            });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.detail || 'Create failed');
-
-            currentBoreholeId = result.borehole_id;
-            document.getElementById('ctxBorehole').textContent = borehole_no;
-
-            // Clear only the identifier — other fields stay for the next borehole on this site
-            document.getElementById('borehole_no').value = '';
-
-            // Advance to sample recording phase
-            document.getElementById('boreholeCard').classList.add('hidden');
-            document.getElementById('contextBar').classList.add('visible');
-            document.getElementById('sampleInfoCard').classList.remove('hidden');
-            document.getElementById('recordCard').classList.remove('hidden');
-
-        } catch (err) {
-            showError('Borehole error: ' + err.message);
-        } finally{
-            btn.disabled = false;
-            btn.textContent = 'Start Borehole →';
-        }    
-    }
-
-    async function toggleRecord() {
-        if (isRecording) return;
-        await startRecording();
-    }
-
-    async function startRecording() {
-        const depth = document.getElementById('depth_ft').value;
-        const sampleNo = document.getElementById('sample_no').value;
-
-        if (!depth) { showError('Please enter depth before recording.'); return; }
-        if (!sampleNo) { showError('Please enter sample number before recording.'); return; }
-        hideDepthWarning();
-        const duplicate = await checkDepth(depth, sampleNo);
-        if (duplicate) return;
-        hideError();
-
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            audioChunks = [];
-            mediaRecorder = new MediaRecorder(stream);
-
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) audioChunks.push(e.data);
-            };
-
-            mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                stream.getTracks().forEach(t => t.stop());
-                await submitSample(audioBlob);
-            };
-
-            mediaRecorder.start();
-            isRecording = true;
-
-            document.getElementById('recordBtn').classList.add('recording');
-            document.getElementById('recordStatus').textContent = '● Recording...';
-            document.getElementById('recordStatus').className = 'record-status active';
-            document.getElementById('stopBtn').classList.add('visible');
-            document.getElementById('resultCard').classList.remove('visible');
-            document.getElementById('newBtn').classList.remove('visible');
-
-        } catch (err) {
-            showError('Microphone access denied. Please allow microphone and try again.');
-        }
-    }
-
-    function stopRecording() {
-        if (mediaRecorder && isRecording) {
-            mediaRecorder.stop();
-            isRecording = false;
-            document.getElementById('recordBtn').classList.remove('recording');
-            document.getElementById('recordStatus').textContent = 'Processing...';
-            document.getElementById('recordStatus').className = 'record-status processing';
-            document.getElementById('stopBtn').classList.remove('visible');
-        }
-    }
-
-    async function submitSample(audioBlob) {
-        const depth_ft = parseFloat(document.getElementById('depth_ft').value);
-        const sample_no = parseInt(document.getElementById('sample_no').value);
-        const formData = new FormData();
-        formData.append('audio', audioBlob, 'recording.webm');
-        formData.append('sample_no', sample_no);
-        formData.append('depth_ft', depth_ft);
-
-        try {
-            document.getElementById('recordStatus').textContent = 'Transcribing + extracting...';
-            document.getElementById('cancelBtn').classList.add('visible');
-
-            currentAbortController = new AbortController();
-
-            const response = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/draft`, {
-                method: 'POST',
-                body: formData,
-                signal: currentAbortController.signal
-            });
-
-            document.getElementById('cancelBtn').classList.remove('visible');
-
-            if (!response.ok) throw new Error(await response.text());
-
-            const data = await response.json();
-            currentSampleData = data;
-            displayResult(data);
-
-        } catch (err) {
-            document.getElementById('cancelBtn').classList.remove('visible');
-            if (err.name === 'AbortError') {
-                resetStatus();
-            } else {
-                showError('Pipeline error — check server. ' + err.message.slice(0, 100));
-                resetStatus();
-            }
-        }
-    }
-
-    function displayResult(data) {
-        // Sample ID
-        document.getElementById('sampleId').textContent =
-            `SS-${data.sample_no} @ ${data.depth_m}m`;
-
-        // Description
-        document.getElementById('descriptionText').textContent = data.description || '—';
-
-        // Per-layer breakdown (only populated for split-layer samples)
-        const layersBox = document.getElementById('layersBox');
-        const layersList = document.getElementById('layersList');
-        if (data.layers && data.layers.length > 0) {
-            layersList.innerHTML = data.layers.map((lf, i) => {
-                const meta = [lf.soil_name, lf.uscs_symbol, lf.consistency].filter(Boolean).join(' · ');
-                return `
-                    <div class="layer-item" id="layer-item-${i}">
-                        <div class="layer-item-header" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
-                            <span style="color:var(--text-dim); font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">Layer ${i+1}</span>
-                            <input type="number" step="0.5" value="${lf.depth_start ?? ''}"
-                                placeholder="start"
-                                style="width:56px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:2px 6px; text-align:center;"
-                                oninput="updateLayerDepth(${i}, 'depth_start', this.value)">
-                            <span style="color:var(--text-dim);">–</span>
-                            <input type="number" step="0.5" value="${lf.depth_end ?? ''}"
-                                placeholder="end"
-                                style="width:56px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:2px 6px; text-align:center;"
-                                oninput="updateLayerDepth(${i}, 'depth_end', this.value)">
-                            <span style="color:var(--text-dim); font-size:10px;">in${meta ? ' — ' + meta : ''}</span>
-                        </div>
-                        <div id="layer-desc-${i}" style="font-size:13px; line-height:1.5;">${lf.description || ''}</div>
-                    </div>`;
-            }).join('');
-            layersBox.style.display = 'flex';
-        } else {
-            layersBox.style.display = 'none';
-            layersList.innerHTML = '';
-        }
-
-        // N-value
-        document.getElementById('nValueDisplay').textContent = data.n_value_log || '—';
-
-        // FIX 2 — Recovery: inches only, no mm conversion shown
-        document.getElementById('recoveryDisplay').textContent =
-            data.recovery_inches ? `${data.recovery_inches}"` : '—';
-
-        // FIX 1 — Blow counts: join as "12 / 17 / 19 / 23"
-        document.getElementById('blowCountsDisplay').textContent =
-            data.blow_counts && data.blow_counts.length > 0
-        ? data.blow_counts.map((blow, i) =>
-            data.pen_depths[i] < 6 ? `${blow}/${data.pen_depths[i]}` : `${blow}`
-          ).join(' , ')
-        : '—';
-
-        // Flags
-        if (data.flags && data.flags.length > 0) {
-            document.getElementById('flagsList').innerHTML =
-                data.flags.map(f => `<div class="flag-item">• ${f}</div>`).join('');
-            document.getElementById('flagsBox').style.display = 'block';
-        } else {
-            document.getElementById('flagsBox').style.display = 'none';
-        }
-
-        // FIX 4 — Pre-fill editable fields with pipeline output
-        // Tech can correct any field before confirming
-        document.getElementById('editDescription').value = data.description || '';
-        document.getElementById('editComments').value = data.comments || '';
-        const blowStr = data.blow_counts
-            ? data.blow_counts.map((blow, i) =>
-                data.pen_depths[i] < 6 ? `${blow}/${data.pen_depths[i]}` : `${blow}`
-              ).join(', ')
-            : '';
-        document.getElementById('editBlowCounts').value = blowStr;
-        document.getElementById('editRecovery').value = data.recovery_inches != null ? data.recovery_inches : '';
-
-        // Snapshot originals so recalculate() knows what actually changed
-        originalBlowCounts = blowStr;
-        originalRecovery   = document.getElementById('editRecovery').value;
-
-        // Normalize blow counts string — strips spaces around commas so "12, 17" === "12,17"
-        const normalizeBlows = str => str.split(',').map(t => t.trim()).filter(t => t).join(',');
-
-        // Show hint whenever a field diverges from its snapshot; hide when restored
-        const updateRecalcHint = () => {
-            const blowChanged     = normalizeBlows(document.getElementById('editBlowCounts').value) !== normalizeBlows(originalBlowCounts);
-            const recoveryChanged = document.getElementById('editRecovery').value.trim()             !== originalRecovery;
-            const hint = document.getElementById('recalcHint');
-            if (blowChanged || recoveryChanged) {
-                hint.style.display = 'block';
-                hideError();
-            } else {
-                hint.style.display = 'none';
-            }
-        };
-        document.getElementById('editBlowCounts').oninput = updateRecalcHint;
-        document.getElementById('editRecovery').oninput   = updateRecalcHint;
-
-        // Transcript
-        document.getElementById('transcriptText').textContent = data.raw_transcript || '';
-
-        // Show result
-        document.getElementById('resultCard').classList.add('visible');
-        document.getElementById('newBtn').classList.remove('visible');
-        document.getElementById('confirmBtn').disabled = false;
-        document.getElementById('confirmBtn').textContent = '✓  Confirm & Save';
-
-        resetStatus();
-        document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    function updateLayerDepth(index, field, value) {
-        if (!currentSampleData || !currentSampleData.layers) return;
-        const parsed = parseFloat(value);
-        currentSampleData.layers[index][field] = isNaN(parsed) ? null : parsed;
-
-        const lf = currentSampleData.layers[index];
-        const start = lf.depth_start;
-        const end = lf.depth_end;
-        const baseDesc = lf.description || '';
-        const prefixedDesc = (start != null && end != null)
-            ? `${start}-${end} in: ${baseDesc}`
-            : baseDesc;
-
-        const descEl = document.getElementById(`layer-desc-${index}`);
-        if (descEl) descEl.textContent = prefixedDesc;
-
-        // Rebuild top-level description and keep editDescription in sync
-        const allPrefixed = currentSampleData.layers.map(l => {
-            const s = l.depth_start;
-            const e = l.depth_end;
-            const d = l.description || '';
-            return (s != null && e != null) ? `${s}-${e} in: ${d}` : d;
-        });
-        currentSampleData.description = allPrefixed.join(' / ');
-        document.getElementById('editDescription').value = currentSampleData.description;
-    }
-
-    async function confirmSample() {
-         if (!currentSampleData) return;
-
-    // Parse edited blow counts — handles both "25" and "50/3" notation
-    const rawBlows = document.getElementById('editBlowCounts').value
-        .split(',').map(v => v.trim()).filter(v => v.length > 0);
-
-    const parsedBlowCounts = [];
-    const parsedPenDepths = [];
-
-    rawBlows.forEach(token => {
-        if (token.includes('/')) {
-            const parts = token.split('/');
-            parsedBlowCounts.push(parseInt(parts[0]));
-            parsedPenDepths.push(parseFloat(parts[1]));
-        } else {
-            parsedBlowCounts.push(parseInt(token));
-            parsedPenDepths.push(6.0);
-        }
+/* =================================================================
+   GeoLog AI — Field cockpit controller (vanilla JS, single file)
+   Sections:
+     1. CONFIG + STATE
+     2. STORAGE (localStorage)
+     3. API ADAPTER
+     4. NAV / SCREENS
+     5. SETUP FLOWS  (project + borehole)
+     6. ACTIVE CONTEXT + RAIL
+     7. RECORDING
+     8. REVIEW (display, edit, recalculate, confirm)
+     9. HISTORY
+    10. UTILITIES (toast, alerts, time)
+   ================================================================= */
+
+/* ---------- 1. CONFIG + STATE ---------- */
+const API_BASE = window.location.origin;
+
+const state = {
+  projectId: null,
+  projectNo: null,
+  boreholeId: null,
+  boreholeNo: null,
+  depthFt: null,
+  sampleNo: null,
+  depthIncrement: 2.5,
+  // session-local saved samples per borehole (keyed by boreholeId)
+  savedSamples: [],
+  currentSample: null,         // draft from /samples/draft
+  originalBlowCounts: '',
+  originalRecovery: '',
+  isRecording: false,
+  mediaRecorder: null,
+  audioChunks: [],
+  audioStream: null,
+  abortController: null,
+  recordStart: 0,
+  recordTimerId: null,
+  // C1 — recording duration limits
+  maxRecordSec: 300,    // hard cap (auto-stop)
+  softWarnSec:  240,    // amber warning threshold
+  // C3 — retain blob for retry on transient upload failure
+  lastDraftBlob: null,
+  // Interruption tracking — set when lock/call/app-switch kills the recording
+  interrupted: false,
+};
+
+/* ---------- 2. STORAGE ---------- */
+const LS_SESSION = 'geolog.session.v1';
+const LS_INC     = 'geolog.increment.v1';
+
+function persistSession(){
+  if(!state.projectId || !state.boreholeId) return;
+  localStorage.setItem(LS_SESSION, JSON.stringify({
+    projectId: state.projectId,
+    projectNo: state.projectNo,
+    boreholeId: state.boreholeId,
+    boreholeNo: state.boreholeNo,
+    sampleNo: state.sampleNo,
+    depthFt: state.depthFt,
+  }));
+}
+function loadSessionFromStorage(){
+  try{ return JSON.parse(localStorage.getItem(LS_SESSION) || 'null'); }catch{ return null; }
+}
+function clearSessionStorage(){ localStorage.removeItem(LS_SESSION); }
+function loadIncrement(){
+  const v = parseFloat(localStorage.getItem(LS_INC));
+  return isNaN(v) ? 2.5 : v;
+}
+function persistIncrement(v){ localStorage.setItem(LS_INC, String(v)); }
+
+/* ---------- 3. API ADAPTER ---------- */
+const api = {
+  async findProject(projectNo){
+    const r = await fetch(`${API_BASE}/projects?project_no=${encodeURIComponent(projectNo)}`);
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.detail || 'Not found');
+    return j.project;
+  },
+  async createProject(data){
+    const r = await fetch(`${API_BASE}/projects`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const j = await r.json(); if(!r.ok) throw new Error(j.detail || 'Create failed'); return j;
+  },
+  async listBoreholes(projectId){
+    const r = await fetch(`${API_BASE}/projects/${projectId}/boreholes`);
+    const j = await r.json(); if(!r.ok) throw new Error(j.detail || 'Failed'); return j.boreholes;
+  },
+  async getSamples(projectId, boreholeId){
+    const r = await fetch(`${API_BASE}/projects/${projectId}/boreholes/${boreholeId}/samples`);
+    const j = await r.json(); if(!r.ok) throw new Error(j.detail || 'Failed'); return j.samples;
+  },
+  async createBorehole(projectId, data){
+    const r = await fetch(`${API_BASE}/projects/${projectId}/boreholes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const j = await r.json(); if(!r.ok) throw new Error(j.detail || 'Create failed'); return j;
+  },
+  async createDraftSample(projectId, boreholeId, blob, sampleNo, depthFt, signal){
+    const fd = new FormData();
+    // P10 — filename matches actual blob type so the backend's mimetype sniff lines up
+    const ext = (blob.type||'').includes('mp4') ? 'm4a'
+              : (blob.type||'').includes('ogg') ? 'ogg'
+              : 'webm';
+    fd.append('audio', blob, `recording.${ext}`);
+    fd.append('sample_no', sampleNo);
+    fd.append('depth_ft', depthFt);
+    const r = await fetch(`${API_BASE}/projects/${projectId}/boreholes/${boreholeId}/samples/draft`,{method:'POST',body:fd,signal});
+    if(!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+  async recalculateSample(projectId, boreholeId, sampleData){
+    const fd = new FormData(); fd.append('sample_data', JSON.stringify(sampleData));
+    const r = await fetch(`${API_BASE}/projects/${projectId}/boreholes/${boreholeId}/samples/recalculate`,{method:'POST',body:fd});
+    const j = await r.json(); if(!r.ok) throw new Error(j.detail || 'Recalc failed'); return j;
+  },
+  async recalculateRecovery(projectId, boreholeId, sampleData){
+    const fd = new FormData(); fd.append('sample_data', JSON.stringify(sampleData));
+    const r = await fetch(`${API_BASE}/projects/${projectId}/boreholes/${boreholeId}/samples/recalculate_recovery`,{method:'POST',body:fd});
+    const j = await r.json(); if(!r.ok) throw new Error(j.detail || 'Recovery recalc failed'); return j;
+  },
+  async checkSample(projectId, boreholeId, depthFt, sampleNo){
+    const p = new URLSearchParams();
+    if(depthFt!=null && depthFt!=='') p.append('depth_ft', depthFt);
+    if(sampleNo!=null && sampleNo!=='') p.append('sample_no', sampleNo);
+    const r = await fetch(`${API_BASE}/projects/${projectId}/boreholes/${boreholeId}/samples/check?${p}`);
+    if(!r.ok) return {exists:false,depth_exists:false,sample_no_exists:false};
+    return r.json();
+  },
+  async confirmSample(projectId, boreholeId, sampleData){
+    const fd = new FormData(); fd.append('sample_data', JSON.stringify(sampleData));
+    const r = await fetch(`${API_BASE}/projects/${projectId}/boreholes/${boreholeId}/samples/confirmed`,{method:'POST',body:fd});
+    const j = await r.json(); if(!r.ok) throw new Error(j.detail || 'Save failed'); return j;
+  },
+  async patchLayerDepths(projectId, boreholeId, sampleId, layers){
+    const r = await fetch(`${API_BASE}/projects/${projectId}/boreholes/${boreholeId}/samples/${sampleId}/layers`,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({layers})
     });
+    const j = await r.json(); if(!r.ok) throw new Error(j.detail || 'Patch failed'); return j;
+  }
+};
 
-    const editedData = {
-        ...currentSampleData,
-        description: document.getElementById('editDescription').value,
-        comments: document.getElementById('editComments').value || null,
-        blow_counts: parsedBlowCounts,
-        pen_depths: parsedPenDepths
+/* ---------- 4. NAV / SCREENS ---------- */
+function showScreen(name){
+  // P2 / Q1 — guard recording when leaving the log screen.
+  // Route through discardRecording() so the onstop handler bails out instead of
+  // silently uploading a partial Blob.
+  if(state.isRecording && name !== 'log'){
+    if(!confirm('Recording in progress — stop and discard?')) return;
+    discardRecording('Recording cancelled — please re-record on the Log screen.');
+  }
+  // M8 — confirm before discarding an in-flight upload
+  if(state.abortController && name !== 'log'){
+    if(!confirm('Upload in progress — leave and discard the recording?')) return;
+    try{ state.abortController.abort(); }catch{}
+    state.abortController = null;
+    state.lastDraftBlob = null;
+    document.getElementById('cancelBtn').style.display='none';
+    document.getElementById('retryUploadBtn').style.display='none';
+    resetRecordIdle();
+  }
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(`screen-${name}`).classList.add('active');
+  document.querySelectorAll('.appbar .tab').forEach(t=>t.classList.toggle('active', t.dataset.screen===name));
+  document.querySelectorAll('.bottomnav button').forEach(b=>b.classList.toggle('active', b.dataset.screen===name));
+  if(name==='history'){
+    renderHistory();
+    // pull fresh data — covers other-device edits and manual DB edits
+    if(state.boreholeId) resyncSamples();
+  }
+  window.scrollTo({top:0,behavior:'auto'});
+}
+document.querySelectorAll('.appbar .tab').forEach(t=>{
+  t.addEventListener('click', ()=>{ if(!t.disabled) showScreen(t.dataset.screen); });
+});
+
+function enableLogTabs(on){
+  document.getElementById('tab-log').disabled = !on;
+  document.getElementById('tab-history').disabled = !on;
+  // P6 — when a borehole is active, disable Setup tab; use Change buttons in context strip instead
+  document.getElementById('tab-setup').disabled = on;
+  document.getElementById('bottomnav').classList.toggle('visible', on);
+}
+
+/* ---------- 5. SETUP FLOWS ---------- */
+function setProjectMode(mode){
+  document.querySelectorAll('#projectSeg button').forEach((b,i)=>b.classList.toggle('active', (mode==='new'&&i===0)||(mode==='load'&&i===1)));
+  document.getElementById('newProjectForm').style.display  = mode==='new' ? 'flex':'none';
+  document.getElementById('loadProjectForm').style.display = mode==='load'? 'flex':'none';
+  hideAlert('setupErr');
+}
+function setBoreholeMode(mode){
+  document.querySelectorAll('#boreholeSeg button').forEach((b,i)=>b.classList.toggle('active', (mode==='new'&&i===0)||(mode==='load'&&i===1)));
+  document.getElementById('newBoreholeForm').style.display  = mode==='new' ? 'flex':'none';
+  document.getElementById('loadBoreholeForm').style.display = mode==='load'? 'flex':'none';
+  hideAlert('bhErr');
+  if(mode==='load') loadBoreholeList();
+}
+
+async function createProject(){
+  hideAlert('setupErr');
+  const project_no   = val('project_no'), client = val('client'),
+        project_name = val('project_name'), location = val('location');
+  if(!project_no || !client) return showAlert('setupErr','setupErrMsg','Project No. and Client are required.');
+  const btn = document.getElementById('createProjectBtn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try{
+    // P11 — send null for unset optional fields
+    const r = await api.createProject({
+      project_no, client,
+      project_name: project_name || null,
+      location: location || null
+    });
+    state.projectId = r.project_id; state.projectNo = project_no;
+    advanceToBoreholeStep();
+  }catch(e){ showAlert('setupErr','setupErrMsg','Project error: '+e.message); }
+  finally{ btn.disabled=false; btn.textContent='Create Project →'; }
+}
+
+async function loadProject(){
+  hideAlert('setupErr');
+  const project_no = val('load_project_no');
+  if(!project_no) return showAlert('setupErr','setupErrMsg','Enter a project number.');
+  const btn = document.getElementById('loadProjectBtn');
+  btn.disabled=true; btn.textContent='Loading...';
+  try{
+    const p = await api.findProject(project_no);
+    state.projectId = p.id; state.projectNo = p.project_no;
+    advanceToBoreholeStep();
+  }catch(e){ showAlert('setupErr','setupErrMsg','Project error: '+e.message); }
+  finally{ btn.disabled=false; btn.textContent='Load Project →'; }
+}
+
+function advanceToBoreholeStep(){
+  document.getElementById('projectModeCard').style.display='none';
+  const card = document.getElementById('boreholeModeCard');
+  card.style.display='block';
+  document.getElementById('bhProjectLabel').textContent = `Project ${state.projectNo}`;
+  setBoreholeMode('new');
+  hideAlert('setupErr');
+}
+
+async function loadBoreholeList(){
+  hideAlert('bhErr');
+  const items = document.getElementById('boreholeListItems');
+  items.innerHTML = '<div class="rail-empty">Loading…</div>';
+  try{
+    const list = await api.listBoreholes(state.projectId);
+    if(!list.length){ items.innerHTML='<div class="rail-empty">No boreholes yet for this project.</div>'; return; }
+    // P4 — render with data-* attrs and bind handlers in JS (no string interpolation into onclick)
+    items.innerHTML = list.map(bh=>`
+      <button class="bh-row" data-id="${escapeAttr(String(bh.id))}" data-no="${escapeAttr(bh.borehole_no)}">
+        <span class="bn">${escapeHtml(bh.borehole_no)}</span>
+        <span class="meta">${escapeHtml(bh.date_started||'')}${bh.drilling_method?' · '+escapeHtml(bh.drilling_method):''}</span>
+        <span class="arrow">→</span>
+      </button>`).join('');
+    items.querySelectorAll('.bh-row').forEach(b=>{
+      b.addEventListener('click', ()=> selectBorehole(b.dataset.id, b.dataset.no));
+    });
+  }catch(e){ items.innerHTML = `<div class="alert red"><span class="icon">✕</span>${escapeHtml(e.message)}</div>`; }
+}
+function selectBorehole(id, no){
+  // P1 — clear stale next-sample state when switching boreholes
+  state.depthFt = null;
+  state.sampleNo = null;
+  state.currentSample = null;
+  state.boreholeId = id; state.boreholeNo = no;
+  state.savedSamples = [];          // resyncSamples() inside enterLoggingMode populates from backend
+  enterLoggingMode();
+}
+
+async function createBorehole(){
+  const borehole_no = val('borehole_no'), tech = val('tech');
+  if(!borehole_no || !tech) return showAlert('bhErr','bhErrMsg','Borehole No. and Technician are required.');
+  const payload = {
+    borehole_no, tech,
+    drilling_method: val('drilling_method') || null,
+    od_augers: val('od_augers') || null,
+    date_started: val('date_started') || null,
+    driller: val('driller') || null,
+    weather: val('weather') || null,
+    drilling_rig: val('drilling_rig') || null,
+    hammer_weight: val('hammer_weight') || null,
+    hammer_drop: val('hammer_drop') || null,
+  };
+  const btn = document.getElementById('createBoreholeBtn');
+  btn.disabled=true; btn.textContent='Creating...';
+  try{
+    const r = await api.createBorehole(state.projectId, payload);
+    state.boreholeId = r.borehole_id; state.boreholeNo = borehole_no;
+    state.savedSamples = [];
+    document.getElementById('borehole_no').value='';
+    state.depthFt = 0; state.sampleNo = 1;
+    enterLoggingMode();
+  }catch(e){ showAlert('bhErr','bhErrMsg','Borehole error: '+e.message); }
+  finally{ btn.disabled=false; btn.textContent='Start Borehole →'; }
+}
+
+function changeProject(){
+  // P1 — clear all sample-context state on project switch
+  state.projectId = state.projectNo = state.boreholeId = state.boreholeNo = null;
+  state.depthFt = null; state.sampleNo = null;
+  state.currentSample = null; state.savedSamples = [];
+  hideContextStrip();
+  enableLogTabs(false);
+  resetReviewUI();
+  hideAlert('logErr'); hideAlert('dupBlock');
+  document.getElementById('projectModeCard').style.display='block';
+  document.getElementById('boreholeModeCard').style.display='none';
+  document.getElementById('continueCard').style.display='none';
+  setProjectMode('new');
+  showScreen('setup');
+}
+function changeBorehole(){
+  // P1 — clear depth/sample on BH switch so next borehole starts fresh
+  state.boreholeId = state.boreholeNo = null;
+  state.depthFt = null; state.sampleNo = null;
+  state.currentSample = null; state.savedSamples = [];
+  resetReviewUI();
+  enableLogTabs(false);
+  document.getElementById('projectModeCard').style.display='none';
+  document.getElementById('boreholeModeCard').style.display='block';
+  document.getElementById('continueCard').style.display='none';
+  document.getElementById('bhProjectLabel').textContent = `Project ${state.projectNo}`;
+  setBoreholeMode('new');
+  showScreen('setup');
+}
+
+/* ---------- 6. ACTIVE CONTEXT + RAIL ---------- */
+async function enterLoggingMode(){
+  showContextStrip();
+  enableLogTabs(true);
+  persistSession();
+  showScreen('log');
+  // initial paint with whatever we have, then refresh from backend
+  syncNextEditorInputs();
+  renderContextStats();
+  renderRail();
+  await resyncSamples({recomputeNext:true});
+}
+
+/** Pull the canonical sample list from the backend and refresh UI.
+ *  Single source of truth — replaces the old localStorage cache.
+ *  Returns true on success, false on failure (caller can fall back). */
+async function resyncSamples({recomputeNext=false}={}){
+  if(!state.projectId || !state.boreholeId) return false;
+  try{
+    const samples = await api.getSamples(state.projectId, state.boreholeId);
+    state.savedSamples = samples || [];
+    if(recomputeNext) recomputeNextFromSaved();
+    syncNextEditorInputs();
+    renderContextStats();
+    renderRail();
+    if(document.getElementById('screen-history').classList.contains('active')) renderHistory();
+    persistSession();
+    return true;
+  }catch(e){
+    showToast('Could not refresh samples — '+(e.message||'').slice(0,60),'red');
+    return false;
+  }
+}
+function showContextStrip(){
+  document.getElementById('contextStrip').classList.add('visible');
+  document.getElementById('ctxProject').textContent  = state.projectNo  || '—';
+  document.getElementById('ctxBorehole').textContent = state.boreholeNo || '—';
+}
+function hideContextStrip(){
+  document.getElementById('contextStrip').classList.remove('visible');
+}
+function renderContextStats(){
+  const n = state.savedSamples.length;
+  document.getElementById('ctxCount').textContent = n;
+  // M1 — "last saved" = most recently inserted (highest id), not deepest
+  const lastSaved = n
+    ? [...state.savedSamples].sort((a,b)=>(b.id||b.sample_id||0)-(a.id||a.sample_id||0))[0]
+    : null;
+  document.getElementById('ctxLast').textContent = lastSaved ? `SS-${lastSaved.sample_no} @ ${fmtFt(lastSaved.depth_ft)}` : '—';
+  document.getElementById('ctxNext').textContent = (state.depthFt!=null && state.sampleNo!=null) ? `SS-${state.sampleNo} @ ${fmtFt(state.depthFt)}` : '—';
+  document.getElementById('dispDepth').textContent = state.depthFt!=null ? fmtFt(state.depthFt) : '—';
+  document.getElementById('dispSampleNo').textContent = state.sampleNo!=null ? state.sampleNo : '—';
+  document.getElementById('dispIncrement').textContent = state.depthIncrement;
+}
+function recomputeNextFromSaved(){
+  if(state.savedSamples.length){
+    // M1 — depth from deepest sample (rail order), sample # from max sample_no (collision-safe for out-of-order entry)
+    const deepest = state.savedSamples.reduce((a,b)=> a.depth_ft >= b.depth_ft ? a : b);
+    const maxNo   = state.savedSamples.reduce((m,s)=> Math.max(m, s.sample_no||0), 0);
+    if(state.depthFt==null) state.depthFt = round1(deepest.depth_ft + state.depthIncrement);
+    if(state.sampleNo==null || state.sampleNo<=maxNo) state.sampleNo = maxNo + 1;
+  }else{
+    if(state.depthFt==null) state.depthFt = 0;
+    if(state.sampleNo==null) state.sampleNo = 1;
+  }
+}
+function syncNextEditorInputs(){
+  document.getElementById('depth_ft').value  = state.depthFt!=null ? state.depthFt : '';
+  document.getElementById('sample_no').value = state.sampleNo!=null ? state.sampleNo : '';
+}
+function openNextEditor(){ document.getElementById('nextEditor').style.display='block'; syncNextEditorInputs(); }
+function closeNextEditor(){
+  state.depthFt  = parseFloat(document.getElementById('depth_ft').value);
+  state.sampleNo = parseInt(document.getElementById('sample_no').value);
+  if(isNaN(state.depthFt)) state.depthFt = null;
+  if(isNaN(state.sampleNo)) state.sampleNo = null;
+  document.getElementById('nextEditor').style.display='none';
+  renderContextStats(); renderRail(); persistSession();
+  checkDuplicateInline();
+}
+function openIncrementEditor(){ document.getElementById('incrementEditor').style.display='block'; updateIncSeg(); }
+function closeIncrementEditor(){ document.getElementById('incrementEditor').style.display='none'; }
+function setIncrement(v){
+  if(!v || isNaN(v) || v<=0) return;
+  state.depthIncrement = v; persistIncrement(v);
+  document.getElementById('dispIncrement').textContent = v;
+  updateIncSeg();
+}
+function updateIncSeg(){
+  const v = state.depthIncrement;
+  const buttons = document.querySelectorAll('#incSeg button');
+  buttons.forEach(b=>b.classList.remove('active'));
+  if(v===2.5) buttons[0].classList.add('active');
+  else if(v===5) buttons[1].classList.add('active');
+  else { buttons[2].classList.add('active'); document.getElementById('customInc').value=v; }
+}
+
+function renderRail(){
+  const list = document.getElementById('railList');
+  const items = [...state.savedSamples].sort((a,b)=>a.depth_ft-b.depth_ft);
+  if(!items.length && state.depthFt==null){
+    list.innerHTML = '<div class="rail-empty">No samples logged yet — record the first one above.</div>';
+    return;
+  }
+  let html = items.map(s=>{
+    const flagged = s.flags && s.flags.length;
+    return `<div class="rail-item">
+      <div class="depth">${fmtFt(s.depth_ft)} ft</div>
+      <div class="marker ${flagged?'flagged':''}"></div>
+      <div class="body">
+        <div><span class="sn">SS-${s.sample_no}</span> · ${flagged?'<span style="color:var(--amber);font-weight:700;">⚠ review</span>':'<span style="color:var(--green);font-weight:700;">✓ saved</span>'}</div>
+        <div class="sub">N=${s.n_value_log||'—'} · rec ${s.recovery_inches!=null?s.recovery_inches+'\"':'—'}</div>
+      </div>
+    </div>`;
+  }).join('');
+  if(state.depthFt!=null && state.sampleNo!=null){
+    html += `<div class="rail-item">
+      <div class="depth">${fmtFt(state.depthFt)} ft</div>
+      <div class="marker next"></div>
+      <div class="body">
+        <div><span class="sn">SS-${state.sampleNo}</span> · <span style="color:var(--record);font-weight:700;">● next</span></div>
+        <div class="sub">tap record above</div>
+      </div>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+async function checkDuplicateInline(){
+  hideAlert('dupBlock');
+  if(!state.projectId || !state.boreholeId || state.depthFt==null || state.sampleNo==null) return false;
+  // also block against session-saved (in case backend sample list lags)
+  const dupLocal = state.savedSamples.some(s => s.depth_ft===state.depthFt || s.sample_no===state.sampleNo);
+  if(dupLocal){
+    showAlert('dupBlock','dupMsg','✕ Depth or sample # already used in this borehole — change before recording.');
+    return true;
+  }
+  try{
+    const r = await api.checkSample(state.projectId, state.boreholeId, state.depthFt, state.sampleNo);
+    if(r.exists){
+      let msg='';
+      if(r.depth_exists && r.sample_no_exists) msg=`Depth ${state.depthFt} ft AND sample #${state.sampleNo} already exist.`;
+      else if(r.depth_exists) msg=`A sample at ${state.depthFt} ft already exists.`;
+      else msg=`Sample #${state.sampleNo} already exists in this borehole.`;
+      showAlert('dupBlock','dupMsg','✕ '+msg);
+      return true;
+    }
+  }catch{}
+  return false;
+}
+
+/* ---------- 7. RECORDING ---------- */
+async function onRecordTap(){
+  if(state.isRecording){ stopRecording(); return; }
+  // Q3 — re-entry guard: a second tap during the async getUserMedia / permission
+  // prompt would otherwise open a parallel mic stream and orphan the first.
+  if(state._starting) return;
+  if(state.depthFt==null) return showAlert('logErr','logErrMsg','Set depth before recording.');
+  if(state.sampleNo==null) return showAlert('logErr','logErrMsg','Set sample number before recording.');
+  hideAlert('logErr');
+  if(await checkDuplicateInline()) return;
+  state._starting = true;
+
+  try{
+    // M5 — distinguish missing-MediaRecorder from permission errors
+    if(!window.MediaRecorder) throw new Error('NoMediaRecorder');
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    state.audioStream = stream;
+    state.audioChunks = [];
+    // P10 — pick a supported MIME so Safari (mp4) and Chromium/Firefox (webm/opus) both work
+    let mime = '';
+    try{
+      if(window.MediaRecorder?.isTypeSupported?.('audio/webm;codecs=opus')) mime='audio/webm;codecs=opus';
+      else if(window.MediaRecorder?.isTypeSupported?.('audio/webm')) mime='audio/webm';
+      else if(window.MediaRecorder?.isTypeSupported?.('audio/mp4')) mime='audio/mp4';
+    }catch{}
+    state.mediaRecorder = mime ? new MediaRecorder(stream,{mimeType:mime}) : new MediaRecorder(stream);
+    state.mediaRecorder.ondataavailable = e => { if(e.data.size>0) state.audioChunks.push(e.data); };
+    state.mediaRecorder.onstop = async () => {
+      const wasInterrupted = state.interrupted;
+      const actualMime = state.mediaRecorder.mimeType || mime || 'audio/webm';
+      try{ stream.getTracks().forEach(t=>t.stop()); }catch{}
+      state.audioStream = null;
+      // Interruption — bail before upload, keep amber banner up so user re-records
+      if(wasInterrupted){
+        state.audioChunks = [];
+        state.interrupted = false;
+        return;
+      }
+      const blob = new Blob(state.audioChunks, {type: actualMime});
+      await submitSample(blob);
     };
+    // iOS audio-session interruption (incoming call) fires onerror on the recorder
+    state.mediaRecorder.onerror = (ev) => {
+      const reason = (ev && ev.error && ev.error.name) || 'audio-error';
+      discardRecording('Recording stopped by '+reason+'. Audio discarded — please re-record.');
+    };
+    state.mediaRecorder.start();
+    state.isRecording = true;
+    state.interrupted = false;
+    state.recordStart = Date.now();
+    startRecordTimer();
+    document.getElementById('recordBtn').classList.add('recording');
+    document.getElementById('recStatus').textContent = '● Recording — tap to stop';
+    document.getElementById('recStatus').className = 'rec-status active';
+    document.getElementById('stopBtn').style.display='flex';
+    document.getElementById('retryUploadBtn').style.display='none';
+    hideAlert('interruptBanner');
+    document.getElementById('keepOpenHint').classList.remove('hidden');
+    state.lastDraftBlob = null;
+    resetReviewUI();
+  }catch(e){
+    // M5 — clean up the mic stream if we partially opened it, then surface the real cause
+    if(state.audioStream){ try{state.audioStream.getTracks().forEach(t=>t.stop());}catch{} state.audioStream=null; }
+    if(e && e.message === 'NoMediaRecorder'){
+      showAlert('logErr','logErrMsg','This browser does not support voice recording. Open in Chrome, Edge, or Safari 14+.');
+    } else if(e && (e.name==='NotAllowedError' || e.name==='PermissionDeniedError' || e.name==='SecurityError')){
+      showAlert('logErr','logErrMsg','Microphone permission denied — allow microphone in browser settings and retry.');
+    } else if(e && e.name==='NotFoundError'){
+      showAlert('logErr','logErrMsg','No microphone detected on this device.');
+    } else {
+      showAlert('logErr','logErrMsg','Could not start recording — '+(e && e.message ? e.message : 'unknown error').slice(0,120));
+    }
+  } finally {
+    state._starting = false;
+  }
+}
+function stopRecording(){
+  if(!state.isRecording || !state.mediaRecorder) return;
+  try{ state.mediaRecorder.stop(); }catch{}
+  state.isRecording = false;
+  stopRecordTimer();
+  document.getElementById('recordBtn').classList.remove('recording');
+  document.getElementById('recordBtn').classList.add('processing');
+  document.getElementById('recStatus').textContent = 'Processing…';
+  document.getElementById('recStatus').className = 'rec-status processing';
+  document.getElementById('stopBtn').style.display='none';
+  document.getElementById('keepOpenHint').classList.add('hidden');
+}
 
-        const btn = document.getElementById('confirmBtn');
-        btn.disabled = true;
-        btn.textContent = 'Saving...';
+/** Kill an in-progress recording WITHOUT uploading — used for phone call,
+ *  screen lock, app switch, audio session error. Surfaces an amber banner
+ *  so the tech knows the take was lost and must re-record. */
+function discardRecording(message){
+  if(!state.isRecording) return;
+  state.interrupted = true;     // onstop checks this and bails before submit
+  try{ state.mediaRecorder && state.mediaRecorder.stop(); }catch{}
+  if(state.audioStream){ try{state.audioStream.getTracks().forEach(t=>t.stop());}catch{} state.audioStream=null; }
+  state.isRecording = false;
+  state.audioChunks = [];
+  state.lastDraftBlob = null;
+  stopRecordTimer();
+  document.getElementById('recordBtn').classList.remove('recording','processing');
+  document.getElementById('recStatus').textContent = 'Tap to record';
+  document.getElementById('recStatus').className = 'rec-status';
+  document.getElementById('stopBtn').style.display='none';
+  document.getElementById('cancelBtn').style.display='none';
+  document.getElementById('retryUploadBtn').style.display='none';
+  document.getElementById('keepOpenHint').classList.add('hidden');
+  // Persistent amber banner — clears next time the user taps record
+  const msgEl = document.querySelector('#interruptBanner span:last-child');
+  if(msgEl && message) msgEl.textContent = message;
+  document.getElementById('interruptBanner').classList.remove('hidden');
+}
+function startRecordTimer(){
+  const el = document.getElementById('recTimer');
+  el.style.color = '';
+  state.recordTimerId = setInterval(()=>{
+    const s = Math.floor((Date.now()-state.recordStart)/1000);
+    el.textContent = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+    // C1 — soft warning + hard cap so an indefinitely-running recording doesn't blow up the upload
+    if(s >= state.maxRecordSec){
+      showToast('Max recording length reached — auto-stopping.','red');
+      stopRecording();
+    } else if(s >= state.softWarnSec){
+      el.style.color = 'var(--amber)';
+    }
+  },250);
+}
+function stopRecordTimer(){
+  clearInterval(state.recordTimerId); state.recordTimerId=null;
+  document.getElementById('recTimer').textContent='';
+}
+async function submitSample(blob){
+  // C3 — keep the blob so the tech can Retry on transient failure (no need to re-record)
+  state.lastDraftBlob = blob;
+  document.getElementById('recStatus').textContent = 'Transcribing + extracting…';
+  document.getElementById('cancelBtn').style.display='flex';
+  document.getElementById('retryUploadBtn').style.display='none';
+  state.abortController = new AbortController();
+  try{
+    const data = await api.createDraftSample(state.projectId, state.boreholeId, blob, state.sampleNo, state.depthFt, state.abortController.signal);
+    state.currentSample = data;
+    state.abortController = null;          // M2 — clear on success
+    state.audioChunks = [];                // L5 — release chunk references
+    state.lastDraftBlob = null;            // success → no need to retry
+    document.getElementById('cancelBtn').style.display='none';
+    displayResult(data);
+  }catch(e){
+    document.getElementById('cancelBtn').style.display='none';
+    state.abortController = null;
+    if(e.name === 'AbortError'){ resetRecordIdle(); return; }
+    // C3 — surface a concise error and offer Retry instead of throwing the audio away
+    const safeMsg = (e.message||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,120) || 'unknown error';
+    showAlert('logErr','logErrMsg','Pipeline error — '+safeMsg+' · audio kept, tap Retry to resend.');
+    document.getElementById('retryUploadBtn').style.display='flex';
+    resetRecordIdle();
+  }
+}
+function retryUpload(){
+  if(!state.lastDraftBlob) return;
+  document.getElementById('retryUploadBtn').style.display='none';
+  hideAlert('logErr');
+  submitSample(state.lastDraftBlob);
+}
+function cancelProcessing(){
+  if(!confirm('Cancel upload and discard the recording?')) return;
+  if(state.abortController){ try{state.abortController.abort();}catch{} state.abortController=null; }
+  state.lastDraftBlob = null;
+  document.getElementById('cancelBtn').style.display='none';
+  document.getElementById('retryUploadBtn').style.display='none';
+  resetRecordIdle();
+}
+function resetRecordIdle(){
+  document.getElementById('recordBtn').classList.remove('recording','processing');
+  document.getElementById('recStatus').textContent='Tap to record';
+  document.getElementById('recStatus').className='rec-status';
+  document.getElementById('stopBtn').style.display='none';
+  document.getElementById('keepOpenHint').classList.add('hidden');
+  state.isRecording=false; stopRecordTimer();
+}
 
-        try {
-            const formData = new FormData();
-            formData.append('sample_data', JSON.stringify(editedData));
+/* ---------- 8. REVIEW ---------- */
+function displayResult(data){
+  // L3 — round depth_m display (pipeline returns floats like 1.524)
+  const depthMStr = (data.depth_m!=null && !isNaN(data.depth_m)) ? Number(data.depth_m).toFixed(2) : '—';
+  document.getElementById('sampleId').textContent = `SS-${data.sample_no} @ ${depthMStr}m`;
+  document.getElementById('descriptionText').textContent = data.description || '—';
 
-            const response = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/confirmed`, {
-                method: 'POST',
-                body: formData
-            });
+  // layers
+  const layersBox = document.getElementById('layersBox');
+  const layersList = document.getElementById('layersList');
+  if(data.layers && data.layers.length){
+    layersList.innerHTML = data.layers.map((lf,i)=>{
+      const meta = [lf.soil_name, lf.uscs_symbol, lf.consistency].filter(Boolean).join(' · ');
+      return `<div class="layer-card">
+        <div class="lhead">
+          <span class="tag">L${i+1}</span>
+          <input type="number" step="0.5" value="${lf.depth_start ?? ''}" placeholder="start" oninput="updateLayerDepth(${i},'depth_start',this.value)">
+          <span>–</span>
+          <input type="number" step="0.5" value="${lf.depth_end ?? ''}" placeholder="end" oninput="updateLayerDepth(${i},'depth_end',this.value)">
+          <span>in${meta?' — '+escapeHtml(meta):''}</span>
+        </div>
+        <div class="ldesc" id="layer-desc-${i}">${escapeHtml(lf.description||'')}</div>
+      </div>`;
+    }).join('');
+    layersBox.style.display='block';
+  }else{
+    layersBox.style.display='none'; layersList.innerHTML='';
+  }
 
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.detail || 'Save failed');
-            showToast(`✓ Saved — ID ${result.sample_id}`);
-            btn.textContent = '✓ Saved';
-            document.getElementById('newBtn').classList.add('visible');
+  document.getElementById('nValueDisplay').textContent = data.n_value_log || '—';
+  const nEl = document.getElementById('nValueDisplay');
+  nEl.classList.toggle('refusal', !!data.refusal);
+  document.getElementById('recoveryDisplay').textContent = data.recovery_inches!=null ? `${data.recovery_inches}"` : '—';
 
-            // Auto-increment sample number
-            const currentNo = parseInt(document.getElementById('sample_no').value) || 1;
-            document.getElementById('sample_no').value = currentNo + 1;
+  // P8 — defensive pen_depths access (treat missing entry as full-6")
+  const pdArr = data.pen_depths || [];
+  document.getElementById('blowCountsDisplay').textContent =
+    data.blow_counts && data.blow_counts.length
+      ? data.blow_counts.map((b,i)=>{ const pd=pdArr[i]; return pd!=null && pd<6 ? `${b}/${pd}` : `${b}`; }).join(' , ')
+      : '—';
 
-        } catch (err) {
-            showError('Save failed — ' + (err.message || 'check connection.'));
-            console.error('Save error:', err);
-            btn.disabled = false;
-            btn.textContent = '✓  Confirm & Save';
+  // flags (severity-aware)
+  renderFlags(data.flags || []);
+
+  // edit fields
+  document.getElementById('editDescription').value = data.description || '';
+  document.getElementById('editComments').value    = data.comments    || '';
+  const blowStr = data.blow_counts
+    ? data.blow_counts.map((b,i)=>{ const pd=pdArr[i]; return pd!=null && pd<6 ? `${b}/${pd}` : `${b}`; }).join(', ')
+    : '';
+  document.getElementById('editBlowCounts').value  = blowStr;
+  document.getElementById('editRecovery').value    = data.recovery_inches!=null ? data.recovery_inches : '';
+
+  state.originalBlowCounts = blowStr;
+  state.originalRecovery   = document.getElementById('editRecovery').value;
+
+  const norm = s => s.split(',').map(t=>t.trim()).filter(Boolean).join(',');
+  const updateHint = () => {
+    const blowChanged = norm(document.getElementById('editBlowCounts').value) !== norm(state.originalBlowCounts);
+    const recChanged  = document.getElementById('editRecovery').value.trim() !== state.originalRecovery;
+    document.getElementById('recalcHint').classList.toggle('hidden', !(blowChanged || recChanged));
+    if(blowChanged || recChanged) hideAlert('logErr');
+  };
+  document.getElementById('editBlowCounts').oninput = updateHint;
+  document.getElementById('editRecovery').oninput   = updateHint;
+
+  document.getElementById('transcriptText').textContent = data.raw_transcript || '';
+
+  document.getElementById('reviewCard').style.display='block';
+  document.getElementById('newBtn').style.display='none';
+  const cBtn = document.getElementById('confirmBtn');
+  cBtn.disabled = false; cBtn.textContent='✓ Confirm & Save';
+
+  resetRecordIdle();
+  document.getElementById('reviewCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+/* Severity classification — amber by default, red only for true blockers.
+   Backend currently treats all flags equally; this categorizer adds UI severity
+   without losing any flag content. */
+function severityFor(flag){
+  const f = (flag||'').toLowerCase();
+  // red blockers — structurally invalid / can't be saved cleanly
+  if(f.includes('no soil type') || f.includes('not recognized') ||
+     f.includes('missing required depth') || f.includes('duplicate'))
+    return 'red';
+  // info — neutral notices
+  if(f.includes('refusal')) return 'info';
+  // default: needs-review amber
+  return 'amber';
+}
+function renderFlags(flags){
+  const box = document.getElementById('flagsBox'), list = document.getElementById('flagsList');
+  if(!flags.length){ box.style.display='none'; list.innerHTML=''; return; }
+  list.innerHTML = flags.map(f=>{
+    const sev = severityFor(f);
+    const label = sev==='red'?'BLOCKER':sev==='amber'?'REVIEW':'INFO';
+    return `<div class="flag-pill ${sev}"><span class="sev">${label}</span><span>${escapeHtml(f)}</span></div>`;
+  }).join('');
+  box.style.display='block';
+  // disable confirm only on red
+  const hasBlocker = flags.some(f=>severityFor(f)==='red');
+  document.getElementById('confirmBtn').disabled = hasBlocker;
+}
+
+function updateLayerDepth(index, field, value){
+  if(!state.currentSample || !state.currentSample.layers) return;
+  const parsed = parseFloat(value);
+  state.currentSample.layers[index][field] = isNaN(parsed) ? null : parsed;
+  const lf = state.currentSample.layers[index];
+  const baseDesc = lf.description || '';
+  const prefixed = (lf.depth_start!=null && lf.depth_end!=null) ? `${lf.depth_start}-${lf.depth_end} in: ${baseDesc}` : baseDesc;
+  const el = document.getElementById(`layer-desc-${index}`);
+  if(el) el.textContent = prefixed;
+  const allPrefixed = state.currentSample.layers.map(l=>{
+    const s=l.depth_start, e=l.depth_end, d=l.description||'';
+    return (s!=null && e!=null) ? `${s}-${e} in: ${d}` : d;
+  });
+  state.currentSample.description = allPrefixed.join(' / ');
+  document.getElementById('editDescription').value = state.currentSample.description;
+}
+
+async function recalculate(){
+  const btn = document.getElementById('recalcBtn');
+  // M7 — re-entry guard for rapid double-tap
+  if(btn.disabled) return;
+  if(!state.currentSample) return;
+  const blowStr = document.getElementById('editBlowCounts').value.trim();
+  const recStr  = document.getElementById('editRecovery').value.trim();
+  const norm = s => s.split(',').map(t=>t.trim()).filter(Boolean).join(',');
+  const blowsChanged = norm(blowStr) !== norm(state.originalBlowCounts);
+  const recChanged   = recStr !== state.originalRecovery;
+  if(!blowsChanged && !recChanged){
+    showAlert('logErr','logErrMsg','No changes detected — edit blow counts or recovery before recalculating.');
+    return;
+  }
+  hideAlert('logErr'); document.getElementById('recalcHint').classList.add('hidden');
+  btn.textContent='↻ Recalculating…'; btn.disabled=true;
+  try{
+    if(blowsChanged){
+      const {blow_counts, pen_depths} = parseBlowsField(blowStr);
+      const updated = {...state.currentSample, blow_counts, pen_depths};
+      // M4 — snapshot user's layer depth edits so we can preserve them across the recalc
+      const userLayerDepths = (state.currentSample.layers || []).map(l => ({
+        depth_start: l.depth_start, depth_end: l.depth_end
+      }));
+      const data = await api.recalculateSample(state.projectId, state.boreholeId, updated);
+      if(recChanged){
+        const newR = parseFloat(recStr);
+        if(!isNaN(newR)){
+          const rData = await api.recalculateRecovery(state.projectId, state.boreholeId, {pen_depths:data.pen_depths, recovery_inches:newR});
+          data.recovery_inches = rData.recovery_inches;
+          data.recovery_mm     = rData.recovery_mm;
+          data.flags = rData.flag
+            ? [...(data.flags||[]).filter(f=>!f.startsWith('Recovery exceeds')), rData.flag]
+            : (data.flags||[]).filter(f=>!f.startsWith('Recovery exceeds'));
         }
+      }
+      // M4 — re-apply preserved layer depths and rebuild top-level description
+      if(data.layers && userLayerDepths.length === data.layers.length){
+        data.layers = data.layers.map((lf,i)=>({
+          ...lf,
+          depth_start: userLayerDepths[i].depth_start ?? lf.depth_start,
+          depth_end:   userLayerDepths[i].depth_end   ?? lf.depth_end,
+        }));
+        data.description = data.layers.map(l=>{
+          const s=l.depth_start, e=l.depth_end, d=l.description||'';
+          return (s!=null && e!=null) ? `${s}-${e} in: ${d}` : d;
+        }).join(' / ');
+      }
+      state.currentSample = data;
+      displayResult(data);
+    }else{
+      const newR = parseFloat(recStr);
+      if(isNaN(newR)) throw new Error('Invalid recovery value.');
+      const rData = await api.recalculateRecovery(state.projectId, state.boreholeId, {pen_depths:state.currentSample.pen_depths, recovery_inches:newR});
+      state.currentSample = {
+        ...state.currentSample,
+        recovery_inches: rData.recovery_inches,
+        recovery_mm: rData.recovery_mm,
+        flags: rData.flag
+          ? [...(state.currentSample.flags||[]).filter(f=>!f.startsWith('Recovery exceeds')), rData.flag]
+          : (state.currentSample.flags||[]).filter(f=>!f.startsWith('Recovery exceeds'))
+      };
+      displayResult(state.currentSample);
     }
+    return true;
+  }catch(e){
+    showAlert('logErr','logErrMsg','Recalculate failed: '+e.message);
+    // Q2 — restore the recalc hint so the user knows to retry, and report failure
+    document.getElementById('recalcHint').classList.remove('hidden');
+    return false;
+  }
+  finally{ btn.textContent='↻ Recalculate'; btn.disabled=false; }
+}
 
-    async function recalculate() {
-        if (!currentSampleData) return;
-
-        const currentBlowStr    = document.getElementById('editBlowCounts').value.trim();
-        const currentRecoveryStr = document.getElementById('editRecovery').value.trim();
-
-        const normalizeBlows  = str => str.split(',').map(t => t.trim()).filter(t => t).join(',');
-        const blowsChanged    = normalizeBlows(currentBlowStr) !== normalizeBlows(originalBlowCounts);
-        const recoveryChanged = currentRecoveryStr !== originalRecovery;
-
-        // Nothing changed — bail early
-        if (!blowsChanged && !recoveryChanged) {
-            showError('No changes detected — edit blow counts or recovery before recalculating.');
-            return;
-        }
-
-        hideError();
-        document.getElementById('recalcHint').style.display = 'none';
-
-        const btn = document.getElementById('recalcBtn');
-        btn.textContent = '↻  Recalculating...';
-        btn.disabled = true;
-
-        try {
-            // ── Branch 1: blow counts changed (full pipeline, recovery override after if needed) ──
-            if (blowsChanged) {
-                const rawBlows = currentBlowStr.split(',').map(v => v.trim()).filter(v => v.length > 0);
-                const parsedBlowCounts = [];
-                const parsedPenDepths  = [];
-                rawBlows.forEach(token => {
-                    if (token.includes('/')) {
-                        const parts = token.split('/');
-                        parsedBlowCounts.push(parseInt(parts[0]));
-                        parsedPenDepths.push(parseFloat(parts[1]));
-                    } else {
-                        parsedBlowCounts.push(parseInt(token));
-                        parsedPenDepths.push(6.0);
-                    }
-                });
-
-                const updatedData = {
-                    ...currentSampleData,
-                    blow_counts: parsedBlowCounts,
-                    pen_depths:  parsedPenDepths
-                };
-
-                const formData = new FormData();
-                formData.append('sample_data', JSON.stringify(updatedData));
-
-                const response = await fetch(
-                    `${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/recalculate`,
-                    { method: 'POST', body: formData }
-                );
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.detail || 'Recalculate failed');
-
-                // If recovery was also edited, run the lightweight recovery endpoint on top
-                if (recoveryChanged) {
-                    const newRecovery = parseFloat(currentRecoveryStr);
-                    if (!isNaN(newRecovery)) {
-                        const recoveryPayload = new FormData();
-                        recoveryPayload.append('sample_data', JSON.stringify({
-                            pen_depths:      data.pen_depths,
-                            recovery_inches: newRecovery
-                        }));
-                        const rRes = await fetch(
-                            `${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/recalculate_recovery`,
-                            { method: 'POST', body: recoveryPayload }
-                        );
-                        const rData = await rRes.json();
-                        if (!rRes.ok) throw new Error(rData.detail || 'Recovery recalculate failed');
-                        data.recovery_inches = rData.recovery_inches;
-                        data.recovery_mm     = rData.recovery_mm;
-                        if (rData.flag) {
-                            data.flags = [...(data.flags || []), rData.flag];
-                        } else {
-                            data.flags = (data.flags || []).filter(f => !f.startsWith('Recovery exceeds'));
-                        }
-                    }
-                }
-
-                currentSampleData = data;
-                displayResult(data);
-
-            // ── Branch 2: recovery only changed (lightweight endpoint, no Claude) ──
-            } else {
-                const newRecovery = parseFloat(currentRecoveryStr);
-                if (isNaN(newRecovery)) throw new Error('Invalid recovery value.');
-
-                const formData = new FormData();
-                formData.append('sample_data', JSON.stringify({
-                    pen_depths:      currentSampleData.pen_depths,
-                    recovery_inches: newRecovery
-                }));
-
-                const response = await fetch(
-                    `${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/recalculate_recovery`,
-                    { method: 'POST', body: formData }
-                );
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.detail || 'Recovery recalculate failed');
-
-                // Patch only the recovery fields — everything else unchanged
-                currentSampleData = {
-                    ...currentSampleData,
-                    recovery_inches: data.recovery_inches,
-                    recovery_mm:     data.recovery_mm,
-                    flags: data.flag
-                        ? [...(currentSampleData.flags || []).filter(f => !f.startsWith('Recovery exceeds')), data.flag]
-                        : (currentSampleData.flags || []).filter(f => !f.startsWith('Recovery exceeds'))
-                };
-                displayResult(currentSampleData);
-            }
-
-        } catch (err) {
-            showError('Recalculate failed: ' + err.message);
-        } finally {
-            btn.textContent = '↻  Recalculate';
-            btn.disabled = false;
-        }
+function parseBlowsField(str){
+  const tokens = str.split(',').map(v=>v.trim()).filter(Boolean);
+  const blow_counts=[], pen_depths=[];
+  tokens.forEach(t=>{
+    if(t.includes('/')){
+      const [a,b] = t.split('/');
+      blow_counts.push(parseInt(a)); pen_depths.push(parseFloat(b));
+    }else{
+      blow_counts.push(parseInt(t)); pen_depths.push(6.0);
     }
+  });
+  return {blow_counts, pen_depths};
+}
 
-    function cancelProcessing() {
-        if (currentAbortController) {
-            currentAbortController.abort();
-            currentAbortController = null;
-        }
-        document.getElementById('cancelBtn').classList.remove('visible');
-        resetStatus();
+async function confirmSample(){
+  if(!state.currentSample) return;
+  const btn = document.getElementById('confirmBtn');
+  // C2 — re-entry guard so a double-tap can't double-save
+  if(btn.disabled) return;
+  btn.disabled=true; btn.textContent='Saving…';
+  try{
+    // P3 / Q2 — if recalc hint is showing, force a recalculate first so local rail/history match the DB
+    const hintShown = !document.getElementById('recalcHint').classList.contains('hidden');
+    if(hintShown){
+      const ok = await recalculate();
+      if(!ok){ btn.disabled=false; btn.textContent='✓ Confirm & Save'; return; }
+      if(!state.currentSample){ btn.disabled=false; btn.textContent='✓ Confirm & Save'; return; }
     }
-
-    // FIX 4 — Re-record: hides result, keeps depth/pen depths/sample no intact
-    function reRecord() {
-        currentSampleData = null;
-        document.getElementById('resultCard').classList.remove('visible');
-        document.getElementById('newBtn').classList.remove('visible');
-        hideError();
-        resetStatus();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    const {blow_counts, pen_depths} = parseBlowsField(document.getElementById('editBlowCounts').value);
+    // M6 — sanity-check before sending; backend would silently accept []
+    if(blow_counts.length === 0 || blow_counts.some(v=>isNaN(v)) || pen_depths.some(v=>isNaN(v))){
+      showAlert('logErr','logErrMsg','Blow counts are missing or malformed — fix before saving.');
+      btn.disabled=false; btn.textContent='✓ Confirm & Save';
+      return;
     }
-
-    function resetForNewSample() {
-        currentSampleData = null;
-        document.getElementById('resultCard').classList.remove('visible');
-        document.getElementById('newBtn').classList.remove('visible');
-        document.getElementById('confirmBtn').disabled = false;
-        document.getElementById('confirmBtn').textContent = '✓  Confirm & Save';
-        document.getElementById('depth_ft').value = '';
-        hideDepthWarning();
-        hideError();
-        resetStatus();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    const edited = {
+      flags: [],                              // defensive default in case currentSample lacks it
+      ...state.currentSample,
+      description: document.getElementById('editDescription').value,
+      comments:    document.getElementById('editComments').value || null,
+      blow_counts, pen_depths
+    };
+    const r = await api.confirmSample(state.projectId, state.boreholeId, edited);
+    showToast(`✓ Saved — ID ${r.sample_id}`,'green');
+    btn.textContent='✓ Saved';
+    // C2 — clear draft so any stray click can't re-confirm the same sample
+    const justSaved = {...edited, sample_id: r.sample_id, id: r.sample_id};
+    state.currentSample = null;
+    // advance next-sample pointer
+    state.depthFt  = round1((parseFloat(state.depthFt)||0) + state.depthIncrement);
+    state.sampleNo = (parseInt(state.sampleNo)||0) + 1;
+    persistSession();
+    document.getElementById('newBtn').style.display='block';
+    // resync from backend so rail/history reflect server-recomputed n_value etc.
+    const ok = await resyncSamples();
+    if(!ok){
+      // C5 — optimistic insert so dup-check + rail stay correct until next successful sync
+      const already = state.savedSamples.some(s => (s.sample_id||s.id) === r.sample_id);
+      if(!already){
+        state.savedSamples.push(justSaved);
+        renderContextStats(); renderRail();
+      }
+      showToast('Saved — display will refresh on next sync.','red');
     }
+  }catch(e){
+    showAlert('logErr','logErrMsg','Save failed — '+(e.message||'check connection.'));
+    btn.disabled=false; btn.textContent='✓ Confirm & Save';
+  }
+}
 
-    async function checkDepth(depth, sampleNo) {
-        if (!depth || !currentProjectId || !currentBoreholeId) return false;
-        try {
-            const params = new URLSearchParams({ depth_ft: depth });
-            if (sampleNo) params.append('sample_no', sampleNo);
-            const res = await fetch(`${API_BASE}/projects/${currentProjectId}/boreholes/${currentBoreholeId}/samples/check?${params.toString()}`);
-            const data = await res.json();
-            if (data.exists) {
-                let msg = '';
-                if (data.depth_exists && data.sample_no_exists) {
-                    msg = `✕ Depth ${depth} ft and sample no. ${sampleNo} both already exist in this borehole.`;
-                } else if (data.depth_exists) {
-                    msg = `✕ A sample already exists at depth ${depth} ft in this borehole. Please enter a different depth.`;
-                } else {
-                    msg = `✕ Sample number ${sampleNo} already exists in this borehole. Please enter a different sample number.`;
-                }
-                document.getElementById('depthWarningText').textContent = msg;
-                document.getElementById('depthWarning').style.display = 'block';
-                return true;
-            }
-            return false;
-        } catch (_) {
-            return false; // silently fail — don't block recording on network error
-        }
+function reRecord(){
+  state.currentSample = null;
+  resetReviewUI();
+  hideAlert('logErr');
+  resetRecordIdle();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function resetForNewSample(){
+  state.currentSample = null;
+  resetReviewUI();
+  hideAlert('logErr');
+  resetRecordIdle();
+  syncNextEditorInputs(); renderContextStats(); renderRail();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function resetReviewUI(){
+  document.getElementById('reviewCard').style.display='none';
+  document.getElementById('newBtn').style.display='none';
+  document.getElementById('recalcHint').classList.add('hidden');
+}
+
+/* ---------- 9. HISTORY ---------- */
+function renderHistory(){
+  const list = document.getElementById('historyList');
+  document.getElementById('historyMeta').textContent = state.boreholeNo
+    ? `Project ${state.projectNo} · ${state.boreholeNo} · ${state.savedSamples.length} samples`
+    : '—';
+  if(!state.savedSamples.length){
+    list.innerHTML = '<div class="rail-empty">No samples saved yet for this borehole.</div>';
+    document.getElementById('exportCard').style.display='none';
+    return;
+  }
+  document.getElementById('exportCard').style.display='block';
+  const sorted = [...state.savedSamples].sort((a,b)=>a.depth_ft-b.depth_ft);
+  list.innerHTML = sorted.map(s=>{
+    const flagged = s.flags && s.flags.length;
+    return `<div class="history-card ${flagged?'flagged':''}">
+      <div class="history-head">
+        <span class="depth">${fmtFt(s.depth_ft)} ft</span>
+        <span class="sn">SS-${s.sample_no}</span>
+        <span class="saved">${flagged?'⚠ review':'✓ saved'}</span>
+      </div>
+      <div class="history-stats">
+        <span>N=<b>${s.n_value_log||'—'}</b></span>
+        <span>Rec <b>${s.recovery_inches!=null?s.recovery_inches+'"':'—'}</b></span>
+        <span>Blows <b>${s.blow_counts && s.blow_counts.length ? s.blow_counts.map((b,i)=>{const pd=(s.pen_depths||[])[i];return pd!=null && pd<6 ? b+'/'+pd : b;}).join(' , ') : '—'}</b></span>
+      </div>
+      <div class="history-desc">${escapeHtml(s.description || '—')}</div>
+      ${s.comments ? `<div class="history-desc" style="color:var(--muted);font-style:italic;">“${escapeHtml(s.comments)}”</div>`:''}
+      ${flagged?`<div class="flag-list">${s.flags.map(f=>{const sev=severityFor(f);const lbl=sev==='red'?'BLOCKER':sev==='amber'?'REVIEW':'INFO';return `<div class="flag-pill ${sev}"><span class="sev">${lbl}</span><span>${escapeHtml(f)}</span></div>`;}).join('')}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+/* ---------- 10. UTILITIES ---------- */
+function val(id){ return (document.getElementById(id).value||'').trim(); }
+function showAlert(boxId, msgId, msg){ document.getElementById(msgId).textContent=msg; document.getElementById(boxId).classList.remove('hidden'); }
+function hideAlert(boxId){ document.getElementById(boxId).classList.add('hidden'); }
+function showToast(msg, cls=''){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+cls; setTimeout(()=>t.classList.remove('show'),2800); }
+function fmtFt(v){ if(v==null||isNaN(v)) return '—'; return Number(v)===Math.floor(Number(v)) ? String(Number(v).toFixed(1)) : String(Number(v)); }
+function round1(v){ return Math.round(v*10)/10; }
+function escapeHtml(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s); }
+
+/* ---------- BOOT ---------- */
+(function boot(){
+  // L1 — clean up pre-GET-/samples cache key if any device still has it
+  try{ localStorage.removeItem('geolog.samples.v1'); }catch{}
+  state.depthIncrement = loadIncrement();
+  document.getElementById('dispIncrement').textContent = state.depthIncrement;
+  // M9 — if the tab is backgrounded mid-recording (lock screen, call, app switch),
+  // discard the partial recording and tell the user to re-record. Don't upload silently.
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden && state.isRecording){
+      discardRecording('Recording interrupted (screen locked, phone call, or app switched). Audio discarded — please re-record. Keep this screen open.');
     }
-
-    function hideDepthWarning() {
-        document.getElementById('depthWarning').style.display = 'none';
+  });
+  // pagehide fires on iOS when the user swipes the app away or the tab is killed
+  window.addEventListener('pagehide', ()=>{
+    if(state.isRecording){
+      discardRecording('Recording interrupted — please re-record.');
     }
+  });
+  // continue last session card?
+  const last = loadSessionFromStorage();
+  if(last && last.projectId && last.boreholeId){
+    const c = document.getElementById('continueCard');
+    document.getElementById('continueBody').innerHTML =
+      `<div class="mono" style="font-size:13px;color:var(--ink-2);line-height:1.6;">
+         <span class="mono"><b>${escapeHtml(last.projectNo)}</b> · <b style="color:var(--blueprint);">${escapeHtml(last.boreholeNo)}</b></span><br>
+         <span style="color:var(--muted);">Resume at SS-${last.sampleNo} @ ${fmtFt(last.depthFt)} ft</span>
+       </div>`;
+    c.style.display='block';
+  }
+})();
 
-    function showError(msg) {
-        const box = document.getElementById('errorBox');
-        box.textContent = msg;
-        box.classList.add('visible');
+async function continueLastSession(){
+  const last = loadSessionFromStorage();
+  if(!last) return;
+  // P7 + C4 — confirm both project AND borehole still exist before resuming
+  try{
+    const list = await api.listBoreholes(last.projectId);
+    if(!Array.isArray(list) || !list.some(b => String(b.id) === String(last.boreholeId))){
+      throw new Error('Borehole no longer exists');
     }
-
-    function hideError() { document.getElementById('errorBox').classList.remove('visible'); }
-
-    function resetStatus() {
-        document.getElementById('recordStatus').textContent = 'Tap to record';
-        document.getElementById('recordStatus').className = 'record-status';
-        isRecording = false;
-    }
-
-    function showToast(msg) {
-        const toast = document.getElementById('toast');
-        toast.textContent = msg;
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 3000);
-    }
+  }catch(e){
+    showToast('Last session no longer available — clearing.','red');
+    clearSessionStorage();
+    document.getElementById('continueCard').style.display='none';
+    return;
+  }
+  state.projectId = last.projectId; state.projectNo = last.projectNo;
+  state.boreholeId = last.boreholeId; state.boreholeNo = last.boreholeNo;
+  state.sampleNo = last.sampleNo; state.depthFt = last.depthFt;
+  state.savedSamples = [];          // backend is source of truth; resync runs inside enterLoggingMode
+  document.getElementById('continueCard').style.display='none';
+  enterLoggingMode();
+}
+function clearLastSession(){
+  clearSessionStorage();
+  document.getElementById('continueCard').style.display='none';
+}
 </script>
-
 </body>
 </html>
