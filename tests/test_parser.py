@@ -18,6 +18,7 @@ from parser import (
     parse_uscs_symbol,
     parse_plasticity,
     parse_gradation,
+    looks_like_runon_blowcounts,
 )
 
 
@@ -196,6 +197,80 @@ class TestParseBlowCountsFromString:
         # The malformed token is skipped, leaving 3 valid ints with default pen_depths.
         result = parse_blow_counts_from_string("12 17 50/ 23")
         expected = ([12, 17, 23], [6.0, 6.0, 6.0])
+        assert result == expected
+
+
+# ─────────────────────────────────────────────
+# Run-on safeguard — Whisper concatenation defense
+# ─────────────────────────────────────────────
+
+class TestRunOnBlowCountsSafeguard:
+    """
+    Whisper occasionally collapses single-digit blow counts spoken in close
+    succession into one numeric token (e.g. "3, 7, 9, 9" → "3799"). The parser
+    detects and auto-splits this conservatively, and the pipeline emits an
+    amber review flag.
+    """
+
+    # ── detector positives ──
+    def test_detect_runon_four_digit_no_zeros(self):
+        assert looks_like_runon_blowcounts("3799") is True
+
+    def test_detect_runon_three_digit_no_zeros(self):
+        assert looks_like_runon_blowcounts("379") is True
+
+    def test_detect_runon_with_punctuation(self):
+        assert looks_like_runon_blowcounts("3799.") is True
+        assert looks_like_runon_blowcounts("3799,") is True
+
+    # ── detector negatives ──
+    def test_detect_skip_when_zero_present(self):
+        # 250 is a legitimate (if extreme) single value — has zero, don't split.
+        assert looks_like_runon_blowcounts("250") is False
+
+    def test_detect_skip_when_two_digit(self):
+        assert looks_like_runon_blowcounts("47") is False
+
+    def test_detect_skip_when_five_digit(self):
+        assert looks_like_runon_blowcounts("12345") is False
+
+    def test_detect_skip_when_multiple_tokens(self):
+        # Already separated — not a run-on.
+        assert looks_like_runon_blowcounts("12 17 19 23") is False
+
+    def test_detect_skip_when_slash_present(self):
+        # Refusal notation — real >50 count, not a run-on.
+        assert looks_like_runon_blowcounts("50/3") is False
+
+    def test_detect_skip_when_for_present(self):
+        assert looks_like_runon_blowcounts("50 for 3") is False
+
+    def test_detect_skip_empty(self):
+        assert looks_like_runon_blowcounts("") is False
+        assert looks_like_runon_blowcounts("   ") is False
+
+    # ── auto-split end-to-end ──
+    def test_autosplit_four_digit_runon(self):
+        # The reported field bug: "3, 7, 9, 9" got transcribed as "3799".
+        result = parse_blow_counts_from_string("3799")
+        expected = ([3, 7, 9, 9], [6.0, 6.0, 6.0, 6.0])
+        assert result == expected
+
+    def test_autosplit_three_digit_runon(self):
+        result = parse_blow_counts_from_string("379")
+        expected = ([3, 7, 9], [6.0, 6.0, 6.0])
+        assert result == expected
+
+    def test_autosplit_does_not_fire_on_normal_input(self):
+        # Sanity — normal multi-token input bypasses the run-on path.
+        result = parse_blow_counts_from_string("12 17 19 23")
+        expected = ([12, 17, 19, 23], [6.0, 6.0, 6.0, 6.0])
+        assert result == expected
+
+    def test_autosplit_does_not_fire_when_zero_present(self):
+        # 250 has a zero — left alone as a single (extreme but legal) value.
+        result = parse_blow_counts_from_string("250")
+        expected = ([250], [6.0])
         assert result == expected
 
 

@@ -41,6 +41,9 @@ WHISPER_PROMPT = (
     "Dealing with numbers:"
     "All numbers should not be spelled and should be transcribed as numbers e.g fifty for four should be 50 for 4 etc"
     "When listing a set of number separate with commas, when a range of numbers is said e.g 0 to 10 transcribe as 0-10"
+    "Single-digit blow counts spoken in sequence MUST be transcribed as comma-separated digits, never concatenated. "
+    "Example: 'three seven nine nine' or 'three, seven, nine, nine' must be transcribed as '3, 7, 9, 9' — NOT as '3799'. "
+    "Each blow count is a separate number even when small."
     "All inch measurements should be transcribed as 'inches' not as the symbol"
     
 )

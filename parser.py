@@ -146,20 +146,59 @@ def parse_depth_range(layer_slice: str) -> tuple:
 # BLOW COUNT PARSER
 # ─────────────────────────────────────────────
 
+def looks_like_runon_blowcounts(blows_string: str) -> bool:
+    """
+    Whisper-mishearing safeguard.
+
+    Returns True when the blows segment looks like Whisper concatenated a
+    sequence of small single-digit blow counts into one numeric token —
+    e.g. the user said "3, 7, 9, 9" but Whisper produced "3799".
+
+    Conservative trigger conditions (all must hold):
+      • exactly one numeric token in the segment
+      • that token is 3 or 4 digits long
+      • no zero digits (avoids splitting legitimate values like 100, 250, 1080)
+      • no '/' or 'for' refusal notation present (those are real >50 counts)
+    """
+    s = (blows_string or "").strip().lower()
+    if not s:
+        return False
+    if "/" in s or " for " in s:
+        return False
+    cleaned = re.sub(r"[.,?;]", " ", s)
+    numeric_tokens = [t for t in cleaned.split() if t.isdigit()]
+    if len(numeric_tokens) != 1:
+        return False
+    digits = numeric_tokens[0]
+    if not (3 <= len(digits) <= 4):
+        return False
+    if "0" in digits:
+        return False
+    return True
+
+
 def parse_blow_counts_from_string(blows_string: str) -> tuple:
     """
     Converts the blows segment string into (blow_counts, pen_depths).
-    
+
     Detects refusal notation "50 for 3" or "50/3" and extracts pen depth.
     Normal intervals default to 6 inches penetration.
-    
+
     Input:  "12 17 19 23"         → ([12, 17, 19, 23], [6, 6, 6, 6])
     Input:  "12 17 50 for 3 23"   → ([12, 17, 50, 23], [6, 6, 3, 6])
     Input:  "50/3"                → ([50], [3])
     Input:  ""                    → ([], [])
+    Input:  "3799"                → ([3, 7, 9, 9], [6, 6, 6, 6])  # run-on auto-split
     """
     if not blows_string:
         return ([], [])
+
+    # Run-on safeguard — Whisper sometimes collapses "3, 7, 9, 9" into "3799".
+    # Detect the pattern and split into single-digit blow counts before the
+    # main parsing loop. Pipeline emits an amber review flag when this fires.
+    if looks_like_runon_blowcounts(blows_string):
+        digits = [int(d) for d in re.sub(r"[^\d]", "", blows_string)]
+        return (digits, [6.0] * len(digits))
 
     # Normalize "50 for 3" and "50 for 3 inches" → "50/3"
     # Allow comma or period after the inch value (Whisper often writes "50 for 3, 23").

@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 from whisper import transcribe, correct_transcript
 from classification_engine import get_consistency_density, parse_blow_counts
-from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery, is_split_layer
+from parser import segment_transcript, parse_blow_counts_from_string, parse_recovery, is_split_layer, looks_like_runon_blowcounts
 from models import SampleEntry
 import re
 
@@ -320,10 +320,27 @@ def combination(transcript: str, blow_counts: list,
     depth_m = round(depth_ft * 0.3048, 2)
 
     # Step 4 — parse blow counts from transcript if not provided via tap UI
+    blowcount_review_flags = []
     if not blow_counts:
-        blow_counts, pen_depths = parse_blow_counts_from_string(segments.get("blows", ""))
+        raw_blows_segment = segments.get("blows", "")
+        runon_detected = looks_like_runon_blowcounts(raw_blows_segment)
+        blow_counts, pen_depths = parse_blow_counts_from_string(raw_blows_segment)
+        if runon_detected:
+            blowcount_review_flags.append(
+                "Auto-split run-on blow counts (e.g. \"3799\" → 3,7,9,9). "
+                "Verify the values match what was spoken before saving."
+            )
     else:
         pen_depths = [6.0] * len(blow_counts)
+
+    # Sanity check — any individual blow count >100 with a 6\" pen is implausible
+    # and likely indicates a Whisper run-on the auto-split was too cautious to fix
+    # (e.g. \"375\" from \"3, 7, 5\" — auto-split skips numbers containing zeros,
+    # but this catches the all-nonzero high-value case).
+    if blow_counts and any(b > 100 for b in blow_counts):
+        blowcount_review_flags.append(
+            "Blow count exceeds 100 — verify Whisper did not run digits together."
+        )
 
     # Step 4b — each blow count interval needs one penetration depth (inches)
     if len(pen_depths) != len(blow_counts):
@@ -342,7 +359,7 @@ def combination(transcript: str, blow_counts: list,
                 "Number of pen depths must match number of blow counts "
                 f"({len(pen_depths)} depths vs {len(blow_counts)} blows) — "
                 "enter one penetration depth per blow interval."
-            ],
+            ] + blowcount_review_flags,
         )
 
     # Step 5 — N-value
@@ -370,7 +387,7 @@ def combination(transcript: str, blow_counts: list,
                     "manual review required"
                 )
 
-    flags = list(recovery_vs_pen_flags)
+    flags = list(recovery_vs_pen_flags) + list(blowcount_review_flags)
     soil_name_flag = ""
     split = is_split_layer(description_segment)
     layers_for_db = None

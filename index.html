@@ -526,6 +526,13 @@ main{max-width:540px;margin:0 auto;padding:14px 14px 80px;}
       <button onclick="hideAlert('interruptBanner')" aria-label="Dismiss" style="background:transparent;border:0;color:inherit;font-size:18px;font-weight:700;padding:4px 10px;min-height:32px;cursor:pointer;line-height:1;">✕</button>
     </div>
 
+    <!-- Persistent max-length banner — shown when the 5-minute cap is hit. Stays in place until dismissed. -->
+    <div class="alert amber hidden" id="maxLengthBanner" style="width:100%;align-items:center;">
+      <span class="icon">⏱</span>
+      <span style="flex:1;">Max recording length (5 min) reached — recording was auto-stopped and is being processed.</span>
+      <button onclick="hideAlert('maxLengthBanner')" aria-label="Dismiss" style="background:transparent;border:0;color:inherit;font-size:18px;font-weight:700;padding:4px 10px;min-height:32px;cursor:pointer;line-height:1;">✕</button>
+    </div>
+
     <!-- Live tip while recording -->
     <div class="alert info hidden" id="keepOpenHint" style="width:100%;"><span class="icon">●</span><span>Keep this screen open and the phone unlocked while recording. Locking, calls, or switching apps will discard the recording.</span></div>
 
@@ -1214,6 +1221,7 @@ async function onRecordTap(){
     document.getElementById('stopBtn').style.display='flex';
     document.getElementById('retryUploadBtn').style.display='none';
     hideAlert('interruptBanner');
+    hideAlert('maxLengthBanner');
     document.getElementById('keepOpenHint').classList.remove('hidden');
     state.lastDraftBlob = null;
     resetReviewUI();
@@ -1234,10 +1242,12 @@ async function onRecordTap(){
   }
 }
 function stopRecording(){
+  // Always kill the timer first — defensive against any path that flips
+  // state.isRecording=false before stopRecording reaches stopRecordTimer.
+  stopRecordTimer();
   if(!state.isRecording || !state.mediaRecorder) return;
   try{ state.mediaRecorder.stop(); }catch{}
   state.isRecording = false;
-  stopRecordTimer();
   document.getElementById('recordBtn').classList.remove('recording');
   document.getElementById('recordBtn').classList.add('processing');
   document.getElementById('recStatus').textContent = 'Processing…';
@@ -1274,11 +1284,20 @@ function startRecordTimer(){
   const el = document.getElementById('recTimer');
   el.style.color = '';
   state.recordTimerId = setInterval(()=>{
+    // Self-guard — if recording was stopped between scheduling and execution
+    // of this tick (or clearInterval lost the race), bail and stop ourselves.
+    if(!state.isRecording){
+      clearInterval(state.recordTimerId);
+      state.recordTimerId = null;
+      el.textContent = '';
+      return;
+    }
     const s = Math.floor((Date.now()-state.recordStart)/1000);
     el.textContent = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-    // C1 — soft warning + hard cap so an indefinitely-running recording doesn't blow up the upload
+    // Hard cap (5 min) — stop the recording and surface a persistent banner
+    // (no toast — too easy to miss when working outside).
     if(s >= state.maxRecordSec){
-      showToast('Max recording length reached — auto-stopping.','red');
+      document.getElementById('maxLengthBanner').classList.remove('hidden');
       stopRecording();
     } else if(s >= state.softWarnSec){
       el.style.color = 'var(--amber)';
@@ -1286,8 +1305,13 @@ function startRecordTimer(){
   },250);
 }
 function stopRecordTimer(){
-  clearInterval(state.recordTimerId); state.recordTimerId=null;
-  document.getElementById('recTimer').textContent='';
+  if(state.recordTimerId){
+    clearInterval(state.recordTimerId);
+    state.recordTimerId = null;
+  }
+  state.recordStart = 0;
+  const el = document.getElementById('recTimer');
+  if(el) el.textContent = '';
 }
 async function submitSample(blob){
   // C3 — keep the blob so the tech can Retry on transient failure (no need to re-record)
