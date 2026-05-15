@@ -669,8 +669,8 @@ main{max-width:540px;margin:0 auto;padding:14px 14px 80px;}
 
   <div class="card" id="exportCard" style="display:none;">
     <div class="card-head"><div class="card-title">Export</div></div>
-    <button class="btn btn-primary" id="exportPdfBtn" disabled>📄 Generate Borehole Log PDF</button>
-    <div class="card-sub" style="margin-top:8px;text-align:center;">PDF export coming soon — backend endpoint not yet available.</div>
+    <button class="btn btn-primary" id="exportPdfBtn" onclick="downloadBoreholeLogPdf()">📄 Generate Borehole Log PDF</button>
+    <div class="card-sub" style="margin-top:8px;text-align:center;">Generates the full boring log for this borehole as a PDF.</div>
   </div>
 </section>
 
@@ -824,6 +824,17 @@ const api = {
       method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({layers})
     });
     const j = await r.json(); if(!r.ok) throw new Error(j.detail || 'Patch failed'); return j;
+  },
+  async downloadPdf(projectId, boreholeId){
+    const r = await fetch(`${API_BASE}/projects/${projectId}/boreholes/${boreholeId}/pdf`);
+    if(!r.ok){
+      let detail = `PDF export failed (${r.status})`;
+      try { const j = await r.json(); if(j && j.detail) detail = j.detail; } catch(_){}
+      throw new Error(detail);
+    }
+    const cd = r.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename="?([^"]+)"?/i);
+    return { blob: await r.blob(), filename: m ? m[1] : 'boring_log.pdf' };
   }
 };
 
@@ -1689,6 +1700,31 @@ function hideAlert(boxId){ document.getElementById(boxId).classList.add('hidden'
 function showToast(msg, cls=''){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+cls; setTimeout(()=>t.classList.remove('show'),2800); }
 function fmtFt(v){ if(v==null||isNaN(v)) return '—'; return Number(v)===Math.floor(Number(v)) ? String(Number(v).toFixed(1)) : String(Number(v)); }
 function round1(v){ return Math.round(v*10)/10; }
+async function downloadBoreholeLogPdf(){
+  const btn = document.getElementById('exportPdfBtn');
+  if(!state.projectId || !state.boreholeId){
+    showToast('No active borehole','red'); return;
+  }
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Generating PDF…';
+  showToast('Generating PDF…');
+  try {
+    const { blob, filename } = await api.downloadPdf(state.projectId, state.boreholeId);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    showToast('PDF downloaded','green');
+  } catch(e) {
+    showToast(e.message || 'PDF export failed','red');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+}
+
 function escapeHtml(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeAttr(s){ return escapeHtml(s); }
 

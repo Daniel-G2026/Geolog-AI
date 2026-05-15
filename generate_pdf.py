@@ -7,7 +7,9 @@ the depth scale. Paginates automatically when borehole depth overruns one
 page; depth scale stays consistent across pages.
 """
 
+import io
 import json
+from xml.sax.saxutils import escape as _xml_escape
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
@@ -117,23 +119,23 @@ def _layers_html(sample):
         for lf in layers:
             ds = lf.get("depth_start")
             de = lf.get("depth_end")
-            d = (lf.get("description") or "").strip()
+            d = _xml_escape((lf.get("description") or "").strip())
             if ds is not None and de is not None:
                 chunks.append(f"<b>{_fmt_num(ds)}–{_fmt_num(de)} in:</b> {d}")
             else:
                 chunks.append(d)
         return "<br/><br/>".join(chunks)
-    return (sample.get("description") or "").replace("\n", "<br/>")
+    return _xml_escape(sample.get("description") or "").replace("\n", "<br/>")
 
 
 def _comments_html(sample):
     parts = []
-    cmt = (sample.get("comments") or "").strip()
+    cmt = _xml_escape((sample.get("comments") or "").strip())
     if cmt:
         parts.append(cmt)
     flags = _loads(sample.get("flags"), []) or []
     for f in flags:
-        parts.append(f'<font color="{FLAG_HEX}"><b>[FLAG]</b></font> {f}')
+        parts.append(f'<font color="{FLAG_HEX}"><b>[FLAG]</b></font> {_xml_escape(f)}')
     return "<br/>".join(parts)
 
 
@@ -516,13 +518,15 @@ def _fetch_samples(project_id, borehole_id):
 
 # ── Main entry point ──
 
-def generate_boring_log(project_id: int, borehole_id: int, output_path: str):
+def generate_boring_log(project_id: int, borehole_id: int) -> bytes:
     project = _fetch_project(project_id)
     borehole = _fetch_borehole(project_id, borehole_id)
     samples = _fetch_samples(project_id, borehole_id)
 
     if not samples:
         raise ValueError(f"No samples for borehole {borehole_id}")
+
+    buf = io.BytesIO()
 
     # Build vertical intervals: depth_ft = top of sample; length comes from
     # sum(pen_depths)/12. Gaps between samples represent auger advance.
@@ -543,7 +547,7 @@ def generate_boring_log(project_id: int, borehole_id: int, output_path: str):
         intervals.append((top, bot, s))
     total_depth = max((b for _, b, _ in intervals), default=0.0)
 
-    c = canvas.Canvas(output_path, pagesize=letter)
+    c = canvas.Canvas(buf, pagesize=letter)
     c.setTitle(f"Boring Log {borehole.get('borehole_no') or ''}")
 
     page_num = 1
@@ -592,9 +596,12 @@ def generate_boring_log(project_id: int, borehole_id: int, output_path: str):
         page_num += 1
 
     c.save()
+    return buf.getvalue()
 
 
 if __name__ == "__main__":
     # Replace with a real project_id and borehole_id from your DB
-    generate_boring_log(project_id=1, borehole_id=1, output_path="test_output.pdf")
+    pdf_bytes = generate_boring_log(project_id=1, borehole_id=1)
+    with open("test_output.pdf", "wb") as f:
+        f.write(pdf_bytes)
     print("PDF written to test_output.pdf")

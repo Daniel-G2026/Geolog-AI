@@ -3,9 +3,11 @@
 # Exposes the voice logging pipeline as a REST API
 
 import os
+import re
 import json
+import logging
 from dataclasses import asdict
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Query
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pipeline import run_from_voice
 from classification_engine import parse_blow_counts
@@ -465,6 +467,58 @@ async def patch_layer_depths(project_id: int, borehole_id: int, sample_id: int, 
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/projects/{project_id}/boreholes/{borehole_id}/pdf")
+def export_borehole_pdf(project_id: int, borehole_id: int):
+    # Imported here to avoid the circular import (generate_pdf imports
+    # supabase_client from app at module load).
+    from generate_pdf import generate_boring_log
+
+    try:
+        project_row = (
+            supabase_client.table("projects")
+            .select("id, project_no")
+            .eq("id", project_id)
+            .limit(1)
+            .execute()
+        )
+        if not project_row.data:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        borehole_row = (
+            supabase_client.table("boreholes")
+            .select("id, borehole_no")
+            .eq("id", borehole_id)
+            .eq("project_id", project_id)
+            .limit(1)
+            .execute()
+        )
+        if not borehole_row.data:
+            raise HTTPException(status_code=404, detail="Borehole not found")
+
+        try:
+            pdf_bytes = generate_boring_log(project_id, borehole_id)
+        except ValueError as ve:
+            raise HTTPException(status_code=404, detail=str(ve))
+
+        def _safe(part: str) -> str:
+            return re.sub(r"[^A-Za-z0-9._-]+", "_", part or "").strip("_") or "log"
+
+        project_no = _safe(str(project_row.data[0].get("project_no") or "project"))
+        borehole_no = _safe(str(borehole_row.data[0].get("borehole_no") or "borehole"))
+        filename = f"{project_no}_{borehole_no}_boring_log.pdf"
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logging.exception("PDF export failed project_id=%s borehole_id=%s", project_id, borehole_id)
+        raise HTTPException(status_code=500, detail="PDF export failed")
+
 
 @app.get("/")
 def serve_ui():
