@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 .claude/
+demo_boring_log.pdf
+test_generate_sample_pdf.py
+test_output.pdf

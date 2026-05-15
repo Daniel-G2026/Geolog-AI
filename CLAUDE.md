@@ -1,60 +1,90 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repository.
 
 ## Commands
 
 - Install dev deps: `pip install -r requirements-dev.txt`
-- Run server (dev): `uvicorn app:app --reload` (prod entry is the `Procfile`: `uvicorn app:app --host 0.0.0.0 --port $PORT`)
+- Run server (dev): `uvicorn app:app --reload`
 - Run all tests: `pytest` (config in `pytest.ini`; `testpaths = tests`)
 - Run a single test file: `pytest tests/test_parser.py`
 - Run a single test: `pytest tests/test_parser.py::test_name`
 
-Required env vars (loaded from `.env` via `python-dotenv` in `pipeline.py` / `whisper.py`):
+Production entry point is the `Procfile`: `uvicorn app:app --host 0.0.0.0 --port $PORT`
+
+Required env vars (loaded from `.env` via `python-dotenv`):
 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY`.
 
-## Architecture
+## Core architectural principle
 
-GeoLog AI turns a field technician's voice memo into a structured geotechnical soil log entry. The pipeline is a one-way flow with strict separation: Python does all geotechnical math and parsing; Claude is used only for fuzzy field extraction and final ASTM-style description formatting.
+GeoLog AI turns a field technician's voice memo into a structured geotechnical
+soil log entry. The pipeline is a one-way flow with a strict, non-negotiable split:
 
-### Request flow
+**Python does all geotechnical math and parsing. Claude is used only for fuzzy
+field extraction and final ASTM-style description formatting.**
 
-`app.py` (FastAPI) → `pipeline.run_from_voice` → `whisper.transcribe` → `pipeline.combination` → returns a `SampleEntry` (see `models.py`). The frontend is the single-file `index.html` served at `GET /`.
+Never move a calculation, classification, or keyword-detection step into a Claude
+call. Never hardcode a language-interpretation step that belongs in one.
 
-Key endpoints (all under `/projects/{project_id}/boreholes/{borehole_id}`):
-- `POST .../samples/draft` — audio upload → full pipeline → unsaved `SampleEntry` JSON
-- `POST .../samples/recalculate` — rerun `combination()` with edited blow_counts/pen_depths
-- `POST .../samples/recalculate_recovery` — pure-Python recovery vs penetration check
-- `POST .../samples/confirmed` — persist; recomputes SPT once more from submitted blow counts so the DB stays consistent if the user edited values
-- `PATCH .../samples/{sample_id}/layers` — edit split-layer depth ranges post-confirm; rebuilds the top-level description without re-invoking Claude
+Orientation — request flow:
+`app.py` (FastAPI) -> `pipeline.run_from_voice` -> `whisper.transcribe` ->
+`pipeline.combination` -> returns a `SampleEntry` (`models.py`).
+Frontend is the single-file `index.html` served at `GET /`.
+Endpoint definitions live in `app.py` — read them there, not from a doc.
 
-Persistence is Supabase (`projects`, `boreholes`, `samples`). `blow_counts`, `pen_depths`, `flags`, `layers` are stored as JSON strings on `samples` and parsed back to arrays in `list_samples`.
+## Claude's role is bounded
 
-### Pipeline contract (`pipeline.combination`)
+`pipeline.combination` is the ONLY file that calls the Anthropic API. Two calls:
 
-This is the only file that calls the Anthropic API. The flow:
+- **Extraction** (`EXTRACTION_PROMPT`): natural speech -> strict JSON, fixed key
+  set, closed enum of valid `soil_name`s and the 15 USCS symbols. Returns
+  `null`/`[]` for missing fields — never guesses.
+- **Formatting** (`ASTM_SYSTEM_PROMPT`): structured dict -> one description
+  string. Uses values verbatim, omits nulls, no inference.
 
-1. `whisper.correct_transcript` — dictionary fixes (`WHISPER_CORRECTIONS`) + regex `normalize_soil_names` collapse Whisper variants of compound soil names ("clay silt" → "clayey silt", plurals stripped).
-2. `parser.segment_transcript` — splits transcript by spoken keywords (`description`, `blows`, `recovery`, `comments`, `cgd`, `pid`, `cone`) using `KEYWORD_SYNONYMS`. Synonyms within a group are tried longest-first so "blow counts" matches before "blows".
-3. Blow-count parsing — `parse_blow_counts_from_string` handles refusal notation (`50/3`, `50 for 3 inches`) and `looks_like_runon_blowcounts` auto-splits Whisper run-ons like `"3799"` → `[3,7,9,9]` (3–4 digits, no zeros, no `/` or `for`). When the run-on splitter fires, an amber review flag is appended.
-4. SPT math — `classification_engine.parse_blow_counts` (N-value, log notation, refusal) and `get_consistency_density` (lookup against cohesive vs cohesionless tables; lists handle mixed soils with `/` separator).
-5. Split-layer branch — `parser.is_split_layer` triggers when ≥2 `layer N` markers appear in the description segment. `pipeline.parse_split_layers` slices the segment by layer keyword, calls Claude per-slice via `extract_description_fields`, then bidirectionally inherits shared fields (`color`, `moisture`, `inclusions`, `fill`, `plasticity`, `gradation`) across layers. Three depth-validation checks emit flags: per-layer start<end, gap/overlap between consecutive layers, last layer end vs `recovery_inches`.
-6. Single-layer branch — one `extract_description_fields` call.
-7. ASTM formatting — Claude (`claude-sonnet-4-6`) is given the structured `soil_data` dict + `ASTM_SYSTEM_PROMPT` and returns the final report-ready description string. For split layers, each layer is formatted separately and joined with ` / `, with depth prefixes like `0-14 in: ...`.
+If extraction JSON fails to parse, the function returns a default-shaped dict
+with `parse_error` set — the pipeline flags for manual review rather than crashing.
 
-### Claude's role is bounded
+## Flags vs hard failures
 
-- **Extraction** (`EXTRACTION_PROMPT`): natural speech → strict JSON with a fixed key set including a closed enum of valid `soil_name`s and the 15 USCS symbols. Returns `null`/`[]` for missing fields, never guesses.
-- **Formatting** (`ASTM_SYSTEM_PROMPT`): structured dict → one description string. Must use values verbatim and omit nulls; no inference.
+The pipeline never raises for missing/invalid soil data. It short-circuits to a
+`SampleEntry` with `n_value=0` and a populated `flags` list (no soil type
+recognized, depth/recovery mismatch, run-on blow-count warning, etc.). The
+frontend uses these flags to gate confirmation. Preserve this contract — new
+failure modes should add flags, not raise exceptions.
 
-If Claude's extraction JSON fails to parse, the function returns a default-shaped dict with `parse_error` set so the pipeline can flag manual review rather than crash.
+## Critical gotchas — read before editing the pipeline or schema
 
-### Flags vs hard failures
+- **The deterministic/probabilistic split is absolute.** SPT math, N-value
+  calcs, and ASTM D2488 classification MUST be deterministic Python. See the
+  core principle above — this is the rule that matters most in this codebase.
 
-The pipeline never raises for missing/invalid soil data. Instead it short-circuits to a `SampleEntry` with `n_value=0` and a `flags` list (`"No soil type recognized — manual input required"`, depth/recovery mismatches, run-on warnings, etc.). The frontend uses these flags to gate confirmation. See `docs/substitution_strategy.md` for the planned flywheel calibration approach (transcript-level substitutions over prompt injection).
+- **Every pipeline entry point MUST run `correct_transcript()` and
+  `normalize_soil_names()`.** Today `combination()` does this and the
+  recalculate endpoints inherit it — but any NEW entry point must call them
+  explicitly. Do not rely on them being "somewhere upstream."
 
-### Adding parsers/keywords
+- **Transcript synonym substitution MUST use word-boundary regex** (`re.sub`
+  with `\b` anchors). Plain `str.replace()` causes substring corruption — e.g.
+  "note" matching inside "noted". This rule applies to all transcript
+  substitution, including `WHISPER_CORRECTIONS` and `normalize_soil_names`.
 
-- New transcript section keyword: add a synonym group to `parser.KEYWORD_SYNONYMS`.
-- New Whisper mishearing: add to `whisper.WHISPER_CORRECTIONS` (case-insensitive replace) or extend `normalize_soil_names` for regex-shaped variants.
-- New extraction field: extend `EXTRACTION_PROMPT` keys, the default dicts in `extract_description_fields`, and any inheritance lists in `parse_split_layers`.
+- **Supabase IDs are int8/bigint auto-increment, NEVER UUID.** Any code or
+  migration that assumes UUID is wrong.
+
+- **Schema column types matter:** floats are `double precision`, integers are
+  `bigint`. Foreign keys use `ON DELETE RESTRICT`.
+
+## Extending the pipeline
+
+When adding capability, update ALL the related sites — these are the blast radii:
+
+- **New transcript section keyword:** add a synonym group to
+  `parser.KEYWORD_SYNONYMS` (synonyms are matched longest-first, so
+  "blow counts" matches before "blows").
+- **New Whisper mishearing:** add to `whisper.WHISPER_CORRECTIONS`, or extend
+  `normalize_soil_names` for regex-shaped variants. (Mind the word-boundary
+  rule above.)
+- **New extraction field:** extend the `EXTRACTION_PROMPT` key set, the default
+  dicts in `extract_description_fields`, AND any inheritance lists in
+  `parse_split_layers`.

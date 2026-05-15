@@ -31,20 +31,20 @@ WHISPER_PROMPT = (
     "stiff, very stiff, hard, firm, soft, very soft, "
     "compact, dense, very dense, loose, very loose, medium dense, "
     "till, fill, oxidation, rock fragments, organic inclusions, rootlets, "
-    "silty clay till, sandy silt till, sand and silt till, silty sand till"
-    "blow counts, blows, recovery, description, comments, wet spoon"
-    "auger grinding"
-    "gradation - poorly graded, well graded"
-    "plasticity - non plastic, slightly plastic, low plasticity, high plasticity"
-    "uscs/group symbol - CL, ML, SM,SP, GP, GM"
-    "group name"
-    "Dealing with numbers:"
-    "All numbers should not be spelled and should be transcribed as numbers e.g fifty for four should be 50 for 4 etc"
-    "When listing a set of number separate with commas, when a range of numbers is said e.g 0 to 10 transcribe as 0-10"
+    "silty clay till, sandy silt till, sand and silt till, silty sand till, "
+    "blow counts, blows, recovery, description, comments, wet spoon, "
+    "auger grinding, "
+    "gradation - poorly graded, well graded, "
+    "plasticity - non plastic, slightly plastic, low plasticity, high plasticity, "
+    "uscs/group symbol - CL, ML, SM,SP, GP, GM, "
+    "group name, "
+    "Dealing with numbers: "
+    "All numbers should not be spelled and should be transcribed as numbers e.g fifty for four should be 50 for 4 etc "
+    "When listing a set of number separate with commas, when a range of numbers is said e.g 0 to 10 transcribe as 0-10 "
     "Single-digit blow counts spoken in sequence MUST be transcribed as comma-separated digits, never concatenated. "
     "Example: 'three seven nine nine' or 'three, seven, nine, nine' must be transcribed as '3, 7, 9, 9' — NOT as '3799'. "
-    "Each blow count is a separate number even when small."
-    "All inch measurements should be transcribed as 'inches' not as the symbol"
+    "Each blow count is a separate number even when small. "
+    "All inch measurements should be transcribed as 'inches' not as the symbol "
     
 )
 
@@ -154,10 +154,14 @@ def correct_transcript(transcript: str) -> str:
     """
     corrected = transcript.lower()
     for mistake, correction in WHISPER_CORRECTIONS.items():
-        corrected = corrected.replace(mistake, correction)
+        corrected = re.sub(
+            r'\b' + re.escape(mistake) + r'\b',
+            correction,
+            corrected,
+        )
 
-    normalized_transcript = normalize_soil_names(corrected)
-    return normalized_transcript
+        return normalize_soil_names(corrected)
+    
 
 
 def transcribe(audio_file_path: str) -> str:
