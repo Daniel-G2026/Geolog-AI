@@ -1,7 +1,11 @@
 .env
 __pycache__/
 *.pyc
-.claude/
+
+# Claude Code — ignore personal/local, track shared config
+.claude/settings.local.json
+.claude/worktrees/
+
 demo_boring_log.pdf
 test_generate_sample_pdf.py
 test_output.pdf
