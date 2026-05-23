@@ -45,8 +45,12 @@ IMPORTANT:
 FORMAT RULES:
 1. Start with the soil classification phrase built from soil_name.
    - Examples: "silty clay", "sandy silt", "sand and gravel"
+   - If particle_size_range is provided, place it immediately BEFORE the soil_name.
+     - "particle_size_range": "medium to coarse", "soil_name": "sand" → "Medium to coarse sand"
+     - "particle_size_range": "fine",            "soil_name": "gravel" → "Fine gravel"
+   - Do not put the modifier in the components list or in the inclusions list.
 2. If uscs_symbol is provided, place it immediately after the soil classification in parentheses.
-   - e.g. "Silty clay (CL)"
+   - e.g. "Silty clay (CL)", "Medium to coarse sand (SP)"
 3. If fill is true, prefix the description with "Fill,".
 4. After the main soil classification, include remaining fields in this order:
    - additional quantified components
@@ -77,6 +81,8 @@ OUTPUT EXAMPLES:
 - "Silty clay (CL), with trace sand, brown, moist, stiff."
 - "Fill, sandy silt, with gravel and brick fragments, dark brown, moist."
 - "Sand and gravel, wet, dense, poorly graded."
+- "Medium to coarse sand (SP), brown, moist, compact."
+- "Fine gravel, with some sand, grey, wet, dense."
 
 """
 
@@ -96,6 +102,7 @@ Return ONLY a valid JSON object with these exact keys. No explanation, no markdo
 The following are the ONLY valid primary soil names: ["silty clay", "clayey silt", "silt", "clay", "silty sand", "sandy silt", "sand and gravel", "sand"]. Any soil that matches one of these is a primary soil name, not a component.
 Fields to extract:
 - soil_name: primary soil classification (e.g. "silty clay till", "sandy silt")
+- particle_size_range: one of ["fine", "medium", "coarse", "fine to medium", "medium to coarse", "fine to coarse"] or null. Capture the speaker's particle-size modifier verbatim (e.g. "medium to coarse sand" → "medium to coarse"; "fine gravel" → "fine"). Return null if no modifier is stated. Do not invent.
 - components: list of secondary soils with quantifiers (e.g. ["trace gravel", "some sand", "trace to some clay"])
 - color: soil color (e.g. "brown", "dark brown", "reddish brown", "grey")
 - moisture: moisture condition (e.g. "moist", "wet", "very moist to wet", "dry")
@@ -106,6 +113,7 @@ Fields to extract:
 - depth_start: float or null — depth range start in inches
 - depth_end: float or null — depth range end in inches
 - uscs_symbol: one of ["GW","GP","GM","GC","SW","SP","SM","SC","CL","ML","OL","CH","MH","OH","PT"] or null if not mentioned
+- descriptor_fields: JSON object — extract every additional ASTM D2488 soil descriptor present in the text that is NOT already captured in the typed fields above (e.g. angularity, hardness, cementation, structure, HCl reaction, dry strength, dilatancy, toughness, particle shape, max particle size, geologic interpretation, Munsell color codes, local name). Each key is the descriptor name (snake_case), each value is what was stated, exactly as written. Do not invent descriptors not present in the text. If nothing additional is present, return {}.
 
 Rules:
 - soil_name must NOT include trace/some quantifiers
@@ -156,6 +164,7 @@ def extract_description_fields(description_segment: str) -> dict:
     if not description_segment:
         return {
             "soil_name": None,
+            "particle_size_range": None,
             "components": [],
             "color": None,
             "moisture": None,
@@ -166,6 +175,7 @@ def extract_description_fields(description_segment: str) -> dict:
             "depth_start": None,
             "depth_end": None,
             "uscs_symbol": None,
+            "descriptor_fields": {},
         }
 
     message = client.messages.create(
@@ -183,6 +193,7 @@ def extract_description_fields(description_segment: str) -> dict:
     except json.JSONDecodeError:
         return {
             "soil_name": None,
+            "particle_size_range": None,
             "components": [],
             "color": None,
             "moisture": None,
@@ -193,6 +204,7 @@ def extract_description_fields(description_segment: str) -> dict:
             "depth_start": None,
             "depth_end": None,
             "uscs_symbol": None,
+            "descriptor_fields": {},
             "parse_error": "Claude extraction failed — manual input required"
         }
 
@@ -254,8 +266,11 @@ def parse_split_layers(description_segment: str) -> list:
         layer_fields.append(fields)
     
     # Bidirectional shared field inheritance
-    shared_fields = ["color", "moisture", "inclusions", "fill", "plasticity", "gradation"]
-    
+    shared_fields = [
+        "color", "moisture", "inclusions", "fill",
+        "plasticity", "gradation", "particle_size_range",
+    ]
+
     for field in shared_fields:
         # Find the first layer that has a value for this field
         source_value = None
@@ -264,14 +279,33 @@ def parse_split_layers(description_segment: str) -> list:
             if val is not None and val != [] and val != "":
                 source_value = val
                 break
-        
+
         # Apply to all layers missing it
         if source_value is not None:
             for lf in layer_fields:
                 val = lf.get(field)
                 if val is None or val == [] or val == "":
                     lf[field] = source_value
-    
+
+    # descriptor_fields: merge across layers (union of keys, first-non-empty
+    # wins on conflicts). Each layer keeps its own values; missing fields
+    # inherit from peers so downstream queries don't lose info.
+    merged_descriptors: dict = {}
+    for lf in layer_fields:
+        d = lf.get("descriptor_fields") or {}
+        if isinstance(d, dict):
+            for k, v in d.items():
+                if k not in merged_descriptors and v not in (None, "", []):
+                    merged_descriptors[k] = v
+    if merged_descriptors:
+        for lf in layer_fields:
+            existing = lf.get("descriptor_fields") or {}
+            if not isinstance(existing, dict):
+                existing = {}
+            for k, v in merged_descriptors.items():
+                existing.setdefault(k, v)
+            lf["descriptor_fields"] = existing
+
     return layer_fields
 
 # ─────────────────────────────────────────────
@@ -392,6 +426,25 @@ def combination(transcript: str, blow_counts: list,
     split = is_split_layer(description_segment)
     layers_for_db = None
 
+    # Top-level structured fields populated by either branch. The split-layer
+    # branch surfaces the FIRST layer's values here (full per-layer detail
+    # lives in `layers_for_db`/the `layers` JSONB). The single-layer branch
+    # uses the fields dict directly.
+    top_soil_name = None
+    top_particle_size_range = None
+    top_color = None
+    top_moisture = None
+    top_plasticity = None
+    top_gradation = None
+    top_consistency = None
+    top_uscs_symbol = None
+    top_fill = None
+    top_inclusions = None
+    top_components = None
+    top_descriptor_fields = None
+    top_depth_start_ft = None
+    top_depth_end_ft = None
+
     # ─── Branch: split vs single layer ───
 
     if split:
@@ -422,6 +475,7 @@ def combination(transcript: str, blow_counts: list,
 
             soil_data = {
                 "soil_name": lf["soil_name"],
+                "particle_size_range": lf.get("particle_size_range"),
                 "components": lf["components"],
                 "inclusions": lf.get("inclusions", []),
                 "color": lf.get("color"),
@@ -453,10 +507,17 @@ def combination(transcript: str, blow_counts: list,
 
             layers_for_db.append({
                 "soil_name": lf["soil_name"],
+                "particle_size_range": lf.get("particle_size_range"),
                 "uscs_symbol": lf.get("uscs_symbol"),
                 "color": lf.get("color"),
                 "moisture": lf.get("moisture"),
+                "plasticity": lf.get("plasticity"),
+                "gradation": lf.get("gradation"),
                 "consistency": consistency,
+                "fill": lf.get("fill", False),
+                "inclusions": lf.get("inclusions") or [],
+                "components": lf.get("components") or [],
+                "descriptor_fields": lf.get("descriptor_fields") or {},
                 "depth_start": lf.get("depth_start"),
                 "depth_end": lf.get("depth_end"),
                 "description": layer_desc,
@@ -491,6 +552,31 @@ def combination(transcript: str, blow_counts: list,
                 flags.append(f"Last layer ends at {last_end} in but recovery is {recovery_inches} in — partial recovery across layers, manual review required")
 
         description = " / ".join(layer_descriptions)
+
+        # Surface first layer's structured fields at top level (per-layer detail
+        # lives in layers_for_db). Merge descriptor_fields across all layers so
+        # the top-level JSONB carries every descriptor seen in the sample.
+        first = layer_fields[0]
+        top_soil_name = first.get("soil_name")
+        top_particle_size_range = first.get("particle_size_range")
+        top_color = first.get("color")
+        top_moisture = first.get("moisture")
+        top_plasticity = first.get("plasticity")
+        top_gradation = first.get("gradation")
+        top_consistency = layers_for_db[0].get("consistency") if layers_for_db else None
+        top_uscs_symbol = first.get("uscs_symbol")
+        top_fill = bool(first.get("fill", False))
+        top_inclusions = first.get("inclusions") or []
+        top_components = first.get("components") or []
+        merged: dict = {}
+        for lf in layer_fields:
+            d = lf.get("descriptor_fields") or {}
+            if isinstance(d, dict):
+                for k, v in d.items():
+                    merged.setdefault(k, v)
+        top_descriptor_fields = merged or None
+        top_depth_start_ft = first.get("depth_start")
+        top_depth_end_ft = layer_fields[-1].get("depth_end")
 
         # Per-field checks across all layers (shared inheritance already applied)
         if not any(lf.get("color") for lf in layer_fields):
@@ -533,6 +619,7 @@ def combination(transcript: str, blow_counts: list,
         # Step 9 — assemble soil_data
         soil_data = {
             "soil_name": fields["soil_name"],
+            "particle_size_range": fields.get("particle_size_range"),
             "components": fields["components"],
             "inclusions": fields.get("inclusions", []),
             "color": fields.get("color"),
@@ -554,6 +641,23 @@ def combination(transcript: str, blow_counts: list,
         )
         description = message.content[0].text
 
+        # Surface structured fields at the top level for persistence.
+        top_soil_name = fields.get("soil_name")
+        top_particle_size_range = fields.get("particle_size_range")
+        top_color = fields.get("color")
+        top_moisture = fields.get("moisture")
+        top_plasticity = fields.get("plasticity")
+        top_gradation = fields.get("gradation")
+        top_consistency = consistency
+        top_uscs_symbol = fields.get("uscs_symbol")
+        top_fill = bool(fields.get("fill", False))
+        top_inclusions = fields.get("inclusions") or []
+        top_components = fields.get("components") or []
+        descriptors = fields.get("descriptor_fields")
+        top_descriptor_fields = descriptors if (isinstance(descriptors, dict) and descriptors) else None
+        top_depth_start_ft = fields.get("depth_start")
+        top_depth_end_ft = fields.get("depth_end")
+
         if not fields.get("color"):
             flags.append("Color not found — manual input required")
         if not fields.get("moisture"):
@@ -569,6 +673,26 @@ def combination(transcript: str, blow_counts: list,
         flags.append(recovery_flag)
     if soil_name_flag:
         flags.append(soil_name_flag)
+
+    # Split the single get_consistency_density() term into the correct column.
+    # Cohesive soils → consistency; cohesionless → density. Mixed (list of
+    # soils that produced a "stiff/compact"-style combined term) → keep the
+    # combined string under `consistency` and leave `density` null.
+    from classification_engine import COHESIVE_TERMS, COHESIONLESS_TERMS
+    final_consistency = None
+    final_density = None
+    if top_consistency:
+        primary = top_soil_name
+        if isinstance(primary, list):
+            primary = primary[0] if primary else None
+        primary_lower = (primary or "").lower().replace("till", "").strip()
+        if "/" in str(top_consistency):
+            # mixed cohesive+cohesionless — combined term lives in consistency
+            final_consistency = top_consistency
+        elif primary_lower in COHESIONLESS_TERMS:
+            final_density = top_consistency
+        else:
+            final_consistency = top_consistency
 
     return SampleEntry(
         depth_ft=depth_ft,
@@ -587,6 +711,22 @@ def combination(transcript: str, blow_counts: list,
         flags=flags,
         comments=comments,
         layers=layers_for_db if split else None,
+        # ── Structured soil fields (Chunk 1) ──
+        soil_name=(", ".join(top_soil_name) if isinstance(top_soil_name, list) else top_soil_name),
+        particle_size_range=top_particle_size_range,
+        color=top_color,
+        moisture=top_moisture,
+        plasticity=top_plasticity,
+        gradation=top_gradation,
+        consistency=final_consistency,
+        density=final_density,
+        uscs_symbol=top_uscs_symbol,
+        fill=top_fill,
+        inclusions=top_inclusions,
+        components=top_components,
+        descriptor_fields=top_descriptor_fields,
+        depth_start_ft=top_depth_start_ft,
+        depth_end_ft=top_depth_end_ft,
     )
 
 # ─────────────────────────────────────────────

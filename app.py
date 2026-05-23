@@ -38,12 +38,26 @@ class BoreholeCreate(BaseModel):
     sheet_no: int = 1
     total_sheets: int = 1
     # ── Optional header fields ──                  
-    weather: Optional[str] = None                
+    weather: Optional[str] = None
     drilling_rig: Optional[str] = None
     hammer_weight: Optional[str] = None   # lbs
     hammer_drop: Optional[str] = None     # inches
     water_level_depth: Optional[float] = None   # m
     cave_in: Optional[float] = None             # m
+
+    # ── Chunk 2: location, termination, equipment, groundwater ──
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    ground_elevation_ft: Optional[float] = None
+    datum: Optional[str] = None
+    depth_reference_datum: Optional[str] = None
+    total_depth_ft: Optional[float] = None
+    termination_reason: Optional[str] = None       # refusal / planned_depth / obstruction / other
+    groundwater: Optional[dict] = None             # JSONB
+    hammer_type: Optional[str] = None
+    hammer_efficiency: Optional[float] = None
+    sampler_id: Optional[str] = None
+    borehole_diameter_in: Optional[float] = None
 
 class LayerDepthUpdate(BaseModel):
     index: int
@@ -393,6 +407,11 @@ async def confirm_sample(project_id: int, borehole_id: int, sample_data: str = F
             data["n_value_log"] = spt["n_value_log"]
             data["refusal"] = spt["refusal"]
 
+        # NOTE: blow_counts/pen_depths/flags are stored as `text` columns
+        # (legacy schema) so they must be JSON-stringified before insert.
+        # DO NOT add the Chunk 1 JSONB columns (inclusions, components,
+        # lab_tests, descriptor_fields, layers) to this block — they are
+        # real `jsonb` and supabase-py serializes Python dicts/lists natively.
         data["blow_counts"] = json.dumps(blow_counts)
         data["pen_depths"] = json.dumps(pen_depths)
         data["flags"] = json.dumps(data["flags"])

@@ -72,8 +72,23 @@ failure modes should add flags, not raise exceptions.
 - **Supabase IDs are int8/bigint auto-increment, NEVER UUID.** Any code or
   migration that assumes UUID is wrong.
 
-- **Schema column types matter:** floats are `double precision`, integers are
-  `bigint`. Foreign keys use `ON DELETE RESTRICT`.
+- **Schema column types matter:** floats are `double precision`. IDs and FKs
+  are `int8`/`bigint`; value-bearing integers (e.g. `n_value`, `sample_no`,
+  `source_page`) may be `int4`. Foreign keys use `ON DELETE RESTRICT`.
+
+- **Structured soil columns on `samples` (added Chunk 1).** The pipeline now
+  persists `soil_name`, `particle_size_range`, `color`, `moisture`,
+  `plasticity`, `gradation`, `consistency`, `density`, `uscs_symbol`, `fill`,
+  `inclusions` (jsonb), `components` (jsonb), `descriptor_fields` (jsonb),
+  `depth_start_ft`, `depth_end_ft`. These are written alongside the formatted
+  `description` prose — do NOT remove the structured fields when editing
+  `combination()`. The `confirm_sample` endpoint in `app.py` must NOT
+  `json.dumps()` the jsonb columns; only the legacy `text`-typed JSON columns
+  (`blow_counts`, `pen_depths`, `flags`) get that treatment.
+
+- **`particle_size_range` placement.** The formatting prompt expects the
+  particle-size modifier BEFORE the soil name, never in components or
+  inclusions. "Medium to coarse" + "sand" → "Medium to coarse sand (SP)".
 
 ## Extending the pipeline
 
@@ -86,5 +101,10 @@ When adding capability, update ALL the related sites — these are the blast rad
   `normalize_soil_names` for regex-shaped variants. (Mind the word-boundary
   rule above.)
 - **New extraction field:** extend the `EXTRACTION_PROMPT` key set, the default
-  dicts in `extract_description_fields`, AND any inheritance lists in
-  `parse_split_layers`.
+  dicts in `extract_description_fields` (both empty-input and parse-error
+  fallback), AND any inheritance lists in `parse_split_layers`. If the field
+  should also be persisted, add it to `SampleEntry` (`models.py`), populate
+  the `top_*` variables in `combination()` (both single and split branches),
+  thread it into the final `SampleEntry(...)` return, and add the column to
+  the `samples` table via a Supabase migration. JSONB columns must not be
+  `json.dumps()`'d in `confirm_sample` (`app.py`).

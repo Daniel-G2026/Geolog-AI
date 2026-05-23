@@ -9,3 +9,6 @@ __pycache__/
 demo_boring_log.pdf
 test_generate_sample_pdf.py
 test_output.pdf
+
+# Chunk 3 — synthetic borehole log fixtures (regeneratable via tools.generate_synthetic_log)
+fixtures/
