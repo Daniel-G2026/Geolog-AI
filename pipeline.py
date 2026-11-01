@@ -113,7 +113,6 @@ Fields to extract:
 - depth_start: float or null — depth range start in inches
 - depth_end: float or null — depth range end in inches
 - uscs_symbol: one of ["GW","GP","GM","GC","SW","SP","SM","SC","CL","ML","OL","CH","MH","OH","PT"] or null if not mentioned
-- descriptor_fields: JSON object — extract every additional ASTM D2488 soil descriptor present in the text that is NOT already captured in the typed fields above (e.g. angularity, hardness, cementation, structure, HCl reaction, dry strength, dilatancy, toughness, particle shape, max particle size, geologic interpretation, Munsell color codes, local name). Each key is the descriptor name (snake_case), each value is what was stated, exactly as written. Do not invent descriptors not present in the text. If nothing additional is present, return {}.
 
 Rules:
 - soil_name must NOT include trace/some quantifiers
@@ -175,7 +174,6 @@ def extract_description_fields(description_segment: str) -> dict:
             "depth_start": None,
             "depth_end": None,
             "uscs_symbol": None,
-            "descriptor_fields": {},
         }
 
     message = client.messages.create(
@@ -204,7 +202,6 @@ def extract_description_fields(description_segment: str) -> dict:
             "depth_start": None,
             "depth_end": None,
             "uscs_symbol": None,
-            "descriptor_fields": {},
             "parse_error": "Claude extraction failed — manual input required"
         }
 
@@ -270,7 +267,7 @@ def parse_split_layers(description_segment: str) -> list:
         "color", "moisture", "inclusions", "fill",
         "plasticity", "gradation", "particle_size_range",
     ]
-
+    
     for field in shared_fields:
         # Find the first layer that has a value for this field
         source_value = None
@@ -279,33 +276,14 @@ def parse_split_layers(description_segment: str) -> list:
             if val is not None and val != [] and val != "":
                 source_value = val
                 break
-
+        
         # Apply to all layers missing it
         if source_value is not None:
             for lf in layer_fields:
                 val = lf.get(field)
                 if val is None or val == [] or val == "":
                     lf[field] = source_value
-
-    # descriptor_fields: merge across layers (union of keys, first-non-empty
-    # wins on conflicts). Each layer keeps its own values; missing fields
-    # inherit from peers so downstream queries don't lose info.
-    merged_descriptors: dict = {}
-    for lf in layer_fields:
-        d = lf.get("descriptor_fields") or {}
-        if isinstance(d, dict):
-            for k, v in d.items():
-                if k not in merged_descriptors and v not in (None, "", []):
-                    merged_descriptors[k] = v
-    if merged_descriptors:
-        for lf in layer_fields:
-            existing = lf.get("descriptor_fields") or {}
-            if not isinstance(existing, dict):
-                existing = {}
-            for k, v in merged_descriptors.items():
-                existing.setdefault(k, v)
-            lf["descriptor_fields"] = existing
-
+    
     return layer_fields
 
 # ─────────────────────────────────────────────
@@ -429,7 +407,9 @@ def combination(transcript: str, blow_counts: list,
     # Top-level structured fields populated by either branch. The split-layer
     # branch surfaces the FIRST layer's values here (full per-layer detail
     # lives in `layers_for_db`/the `layers` JSONB). The single-layer branch
-    # uses the fields dict directly.
+    # uses the fields dict directly. descriptor_fields is intentionally not
+    # surfaced here — extraction for it was removed from EXTRACTION_PROMPT;
+    # it stays manual-entry-only via the confirm UI for now.
     top_soil_name = None
     top_particle_size_range = None
     top_color = None
@@ -441,7 +421,6 @@ def combination(transcript: str, blow_counts: list,
     top_fill = None
     top_inclusions = None
     top_components = None
-    top_descriptor_fields = None
     top_depth_start_ft = None
     top_depth_end_ft = None
 
@@ -517,7 +496,6 @@ def combination(transcript: str, blow_counts: list,
                 "fill": lf.get("fill", False),
                 "inclusions": lf.get("inclusions") or [],
                 "components": lf.get("components") or [],
-                "descriptor_fields": lf.get("descriptor_fields") or {},
                 "depth_start": lf.get("depth_start"),
                 "depth_end": lf.get("depth_end"),
                 "description": layer_desc,
@@ -553,9 +531,8 @@ def combination(transcript: str, blow_counts: list,
 
         description = " / ".join(layer_descriptions)
 
-        # Surface first layer's structured fields at top level (per-layer detail
-        # lives in layers_for_db). Merge descriptor_fields across all layers so
-        # the top-level JSONB carries every descriptor seen in the sample.
+        # Surface first layer's structured fields at top level (per-layer
+        # detail lives in layers_for_db).
         first = layer_fields[0]
         top_soil_name = first.get("soil_name")
         top_particle_size_range = first.get("particle_size_range")
@@ -568,13 +545,6 @@ def combination(transcript: str, blow_counts: list,
         top_fill = bool(first.get("fill", False))
         top_inclusions = first.get("inclusions") or []
         top_components = first.get("components") or []
-        merged: dict = {}
-        for lf in layer_fields:
-            d = lf.get("descriptor_fields") or {}
-            if isinstance(d, dict):
-                for k, v in d.items():
-                    merged.setdefault(k, v)
-        top_descriptor_fields = merged or None
         top_depth_start_ft = first.get("depth_start")
         top_depth_end_ft = layer_fields[-1].get("depth_end")
 
@@ -653,8 +623,6 @@ def combination(transcript: str, blow_counts: list,
         top_fill = bool(fields.get("fill", False))
         top_inclusions = fields.get("inclusions") or []
         top_components = fields.get("components") or []
-        descriptors = fields.get("descriptor_fields")
-        top_descriptor_fields = descriptors if (isinstance(descriptors, dict) and descriptors) else None
         top_depth_start_ft = fields.get("depth_start")
         top_depth_end_ft = fields.get("depth_end")
 
@@ -724,7 +692,6 @@ def combination(transcript: str, blow_counts: list,
         fill=top_fill,
         inclusions=top_inclusions,
         components=top_components,
-        descriptor_fields=top_descriptor_fields,
         depth_start_ft=top_depth_start_ft,
         depth_end_ft=top_depth_end_ft,
     )

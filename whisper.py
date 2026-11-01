@@ -160,8 +160,8 @@ def correct_transcript(transcript: str) -> str:
             corrected,
         )
 
-        return normalize_soil_names(corrected)
-    
+    return normalize_soil_names(corrected)
+
 
 
 def transcribe(audio_file_path: str) -> str:
