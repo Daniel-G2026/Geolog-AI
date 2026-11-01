@@ -627,6 +627,105 @@ main{max-width:540px;margin:0 auto;padding:14px 14px 80px;}
         <label>Recovery (in)</label>
         <input type="number" id="editRecovery" step="0.5" min="0" max="24" inputmode="decimal">
       </div>
+
+      <!-- Structured soil fields (Chunk 1). Collapsed by default so the
+           voice-first flow stays uncluttered. Tap to expand and edit any
+           field that needs correction before saving. -->
+      <details id="structuredFieldsCard"
+               style="margin-top:4px;border:1px solid var(--border,#d0d4d9);border-radius:8px;padding:10px 12px;">
+        <summary style="cursor:pointer;font-weight:600;">Soil Classification <span class="hint">(advanced)</span></summary>
+        <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="field">
+            <label>Soil Name</label>
+            <input type="text" id="sfSoilName" placeholder="e.g. sand" maxlength="64">
+          </div>
+          <div class="field">
+            <label>Particle Size</label>
+            <select id="sfParticleSize">
+              <option value="">—</option>
+              <option>fine</option>
+              <option>medium</option>
+              <option>coarse</option>
+              <option>fine to medium</option>
+              <option>medium to coarse</option>
+              <option>fine to coarse</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>USCS Symbol</label>
+            <select id="sfUSCS">
+              <option value="">—</option>
+              <option>GW</option><option>GP</option><option>GM</option><option>GC</option>
+              <option>SW</option><option>SP</option><option>SM</option><option>SC</option>
+              <option>CL</option><option>ML</option><option>OL</option>
+              <option>CH</option><option>MH</option><option>OH</option><option>PT</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Fill</label>
+            <label for="sfFill"
+                   style="display:flex;align-items:center;gap:10px;min-height:48px;
+                          padding:0 14px;border:1.5px solid var(--rule-strong);
+                          border-radius:8px;background:var(--surface);cursor:pointer;
+                          text-transform:none;letter-spacing:normal;font-weight:500;
+                          font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--ink);">
+              <input type="checkbox" id="sfFill"
+                     style="-webkit-appearance:auto;appearance:auto;width:18px;height:18px;
+                            min-height:0;padding:0;margin:0;border:none;">
+              <span>Mark as fill material</span>
+            </label>
+          </div>
+          <div class="field">
+            <label>Color</label>
+            <input type="text" id="sfColor" placeholder="e.g. brown" maxlength="64">
+          </div>
+          <div class="field">
+            <label>Moisture</label>
+            <select id="sfMoisture">
+              <option value="">—</option>
+              <option>dry</option>
+              <option>moist</option>
+              <option>very moist</option>
+              <option>wet</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Plasticity</label>
+            <select id="sfPlasticity">
+              <option value="">—</option>
+              <option>non-plastic</option>
+              <option>slightly plastic</option>
+              <option>low plasticity</option>
+              <option>high plasticity</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Gradation</label>
+            <select id="sfGradation">
+              <option value="">—</option>
+              <option>poorly graded</option>
+              <option>well graded</option>
+            </select>
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Consistency / Density <span class="hint">(derived from N — read only)</span></label>
+            <input type="text" id="sfConsistencyDensity" readonly style="background:#f5f5f5;">
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Components <span class="hint">(comma sep — e.g. "trace gravel, some sand")</span></label>
+            <input type="text" id="sfComponents" placeholder="trace gravel, some sand" maxlength="200">
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Inclusions <span class="hint">(comma sep)</span></label>
+            <input type="text" id="sfInclusions" placeholder="rootlets, oxidation" maxlength="200">
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>ASTM Descriptors <span class="hint">(JSON — e.g. {"angularity":"subangular"})</span></label>
+            <textarea id="sfDescriptorFields" rows="2" maxlength="4000"
+                      style="font-family:ui-monospace,Consolas,Menlo,monospace;font-size:12px;"></textarea>
+          </div>
+        </div>
+      </details>
     </div>
 
     <div class="alert amber hidden" id="recalcHint" style="margin-top:10px;"><span class="icon">⚠</span>Changes detected — tap <b>Recalculate</b> to update.</div>
@@ -1420,6 +1519,10 @@ function displayResult(data){
   // edit fields
   document.getElementById('editDescription').value = data.description || '';
   document.getElementById('editComments').value    = data.comments    || '';
+
+  // Structured soil fields (Chunk 1). Populate from current sample so the
+  // user can edit any auto-extracted value before saving.
+  populateStructuredFields(data);
   const blowStr = data.blow_counts
     ? data.blow_counts.map((b,i)=>{ const pd=pdArr[i]; return pd!=null && pd<6 ? `${b}/${pd}` : `${b}`; }).join(', ')
     : '';
@@ -1478,6 +1581,101 @@ function renderFlags(flags){
   document.getElementById('confirmBtn').disabled = hasBlocker;
 }
 
+/* ──────────────────────────────────────────────────────────────
+   Structured soil fields helpers (Chunk 1)
+   Read/write the editable typed columns alongside the free-text
+   description. None of these are required — empty inputs map to
+   null so backward compatibility with voice-only entries holds.
+   ────────────────────────────────────────────────────────────── */
+function populateStructuredFields(data){
+  const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = (v ?? ''); };
+  setVal('sfSoilName',      data.soil_name);
+  setVal('sfParticleSize',  data.particle_size_range);
+  setVal('sfUSCS',          data.uscs_symbol);
+  setVal('sfColor',         data.color);
+  setVal('sfMoisture',      data.moisture);
+  setVal('sfPlasticity',    data.plasticity);
+  setVal('sfGradation',     data.gradation);
+  document.getElementById('sfFill').checked = !!data.fill;
+  // Consistency / density: whichever the pipeline populated (never both).
+  document.getElementById('sfConsistencyDensity').value =
+    data.consistency || data.density || '';
+  setVal('sfComponents',    Array.isArray(data.components) ? data.components.join(', ') : '');
+  setVal('sfInclusions',    Array.isArray(data.inclusions) ? data.inclusions.join(', ') : '');
+  document.getElementById('sfDescriptorFields').value =
+    (data.descriptor_fields && Object.keys(data.descriptor_fields).length)
+      ? JSON.stringify(data.descriptor_fields, null, 2) : '';
+}
+
+function readStructuredFields(){
+  const txt = id => (document.getElementById(id).value || '').trim() || null;
+  // Empty list inputs map to null (not []) so the DB column stays NULL,
+  // matching the "field not stated" semantics of pre-migration rows.
+  const csv = id => {
+    const v = (document.getElementById(id).value || '').trim();
+    if(!v) return null;
+    return v.split(',').map(s => s.trim()).filter(Boolean);
+  };
+  let descriptorFields = null;
+  const rawDF = (document.getElementById('sfDescriptorFields').value || '').trim();
+  if(rawDF){
+    if(rawDF.length > 4000){
+      throw new Error('ASTM Descriptors: payload too large (>4 KB).');
+    }
+    let parsed;
+    try { parsed = JSON.parse(rawDF); }
+    catch(e){ throw new Error('ASTM Descriptors: invalid JSON — ' + e.message); }
+    if(!parsed || typeof parsed !== 'object' || Array.isArray(parsed)){
+      throw new Error('ASTM Descriptors: must be a JSON object, e.g. {"angularity":"subangular"}.');
+    }
+    // Reject nested objects/arrays — the pipeline expects flat scalar values.
+    for(const [k, v] of Object.entries(parsed)){
+      const t = typeof v;
+      if(v !== null && t !== 'string' && t !== 'number' && t !== 'boolean'){
+        throw new Error(`ASTM Descriptors: value for "${k}" must be string/number/boolean/null (got ${t === 'object' ? (Array.isArray(v) ? 'array' : 'object') : t}).`);
+      }
+    }
+    descriptorFields = parsed;
+  }
+  return {
+    soil_name:           txt('sfSoilName'),
+    particle_size_range: txt('sfParticleSize'),
+    uscs_symbol:         txt('sfUSCS'),
+    color:               txt('sfColor'),
+    moisture:            txt('sfMoisture'),
+    plasticity:          txt('sfPlasticity'),
+    gradation:           txt('sfGradation'),
+    fill:                document.getElementById('sfFill').checked,
+    components:          csv('sfComponents'),
+    inclusions:          csv('sfInclusions'),
+    descriptor_fields:   descriptorFields,
+  };
+}
+
+/* Snapshot raw input values BEFORE recalculate() clobbers them with the
+   server's re-extracted output, so the user's explicit edits win over
+   another non-deterministic Claude pass. Mirrors the userLayerDepths
+   pattern used for split-layer depth edits. */
+const _STRUCTURED_FIELD_IDS = [
+  'sfSoilName','sfParticleSize','sfUSCS','sfColor','sfMoisture',
+  'sfPlasticity','sfGradation','sfComponents','sfInclusions','sfDescriptorFields',
+];
+function snapshotStructuredFields(){
+  const snap = { sfFill: document.getElementById('sfFill').checked };
+  for(const id of _STRUCTURED_FIELD_IDS){
+    snap[id] = document.getElementById(id).value;
+  }
+  return snap;
+}
+function restoreStructuredFields(snap){
+  if(!snap) return;
+  document.getElementById('sfFill').checked = !!snap.sfFill;
+  for(const id of _STRUCTURED_FIELD_IDS){
+    const el = document.getElementById(id);
+    if(el) el.value = snap[id] ?? '';
+  }
+}
+
 function updateLayerDepth(index, field, value){
   if(!state.currentSample || !state.currentSample.layers) return;
   const parsed = parseFloat(value);
@@ -1511,6 +1709,11 @@ async function recalculate(){
   }
   hideAlert('logErr'); document.getElementById('recalcHint').classList.add('hidden');
   btn.textContent='↻ Recalculating…'; btn.disabled=true;
+  // Snapshot user's structured-field edits BEFORE recalc replaces them with
+  // the server's re-extracted output. Without this, edits like
+  // color="brown"→"red" silently revert because recalc re-runs extraction
+  // and displayResult() re-populates the panel from the new sample.
+  const userStructuredSnap = snapshotStructuredFields();
   try{
     if(blowsChanged){
       const {blow_counts, pen_depths} = parseBlowsField(blowStr);
@@ -1559,6 +1762,9 @@ async function recalculate(){
       };
       displayResult(state.currentSample);
     }
+    // Re-apply the user's structured-field edits after displayResult repopulated
+    // the panel from the server response. Explicit edits beat re-extraction.
+    restoreStructuredFields(userStructuredSnap);
     return true;
   }catch(e){
     showAlert('logErr','logErrMsg','Recalculate failed: '+e.message);
@@ -1604,12 +1810,24 @@ async function confirmSample(){
       btn.disabled=false; btn.textContent='✓ Confirm & Save';
       return;
     }
+    // Read structured fields from the UI; surface JSON errors as a visible alert.
+    let structured;
+    try {
+      structured = readStructuredFields();
+    } catch(err){
+      showAlert('logErr','logErrMsg', err.message);
+      btn.disabled=false; btn.textContent='✓ Confirm & Save';
+      return;
+    }
     const edited = {
       flags: [],                              // defensive default in case currentSample lacks it
       ...state.currentSample,
       description: document.getElementById('editDescription').value,
       comments:    document.getElementById('editComments').value || null,
-      blow_counts, pen_depths
+      blow_counts, pen_depths,
+      // Structured soil fields — UI values override whatever extraction produced.
+      // Empty inputs explicitly null/[] so the user can clear bad extractions.
+      ...structured,
     };
     const r = await api.confirmSample(state.projectId, state.boreholeId, edited);
     showToast(`✓ Saved — ID ${r.sample_id}`,'green');

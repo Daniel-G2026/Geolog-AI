@@ -67,6 +67,30 @@ class LayerDepthUpdate(BaseModel):
 class LayerDepthPatchRequest(BaseModel):
     layers: list[LayerDepthUpdate]
 
+
+# Whitelist of columns accepted from the /samples/confirmed payload.
+# Anything not in this set is dropped before INSERT — defense against
+# malicious or buggy clients spoofing server-controlled fields like
+# `source`, `review_status`, `confidence_score`, `stratum_id`, or `id`.
+# Server-controlled columns (project_id, borehole_id, source defaults,
+# ingestion provenance) are populated explicitly inside the endpoint.
+SAMPLES_INSERT_ALLOWLIST = frozenset({
+    # Sample identification + SPT
+    "sample_no", "depth_ft", "depth_m", "sample_type",
+    "blow_counts", "pen_depths", "n_value", "n_value_log", "refusal",
+    "recovery_inches", "recovery_mm", "cone_blow_ft",
+    # Field screening
+    "cgd_ppm", "pid_ppm",
+    # Description
+    "raw_transcript", "description", "flags", "layers", "comments", "timestamp",
+    # Chunk 1 structured fields (all editable in the confirm UI)
+    "soil_name", "particle_size_range", "color", "moisture",
+    "plasticity", "gradation", "consistency", "density",
+    "uscs_symbol", "fill",
+    "inclusions", "components", "descriptor_fields",
+    "depth_start_ft", "depth_end_ft",
+})
+
 # ── DB helpers ──
 
 def check_existing(table: str, column: str, value, select: str = "id"):
@@ -407,6 +431,11 @@ async def confirm_sample(project_id: int, borehole_id: int, sample_data: str = F
             data["n_value_log"] = spt["n_value_log"]
             data["refusal"] = spt["refusal"]
 
+        # Drop any client-supplied keys not on the allowlist so a malicious
+        # or buggy client can't spoof server-controlled columns (source,
+        # review_status, confidence_score, stratum_id, id, etc.).
+        data = {k: v for k, v in data.items() if k in SAMPLES_INSERT_ALLOWLIST}
+
         # NOTE: blow_counts/pen_depths/flags are stored as `text` columns
         # (legacy schema) so they must be JSON-stringified before insert.
         # DO NOT add the Chunk 1 JSONB columns (inclusions, components,
@@ -414,7 +443,7 @@ async def confirm_sample(project_id: int, borehole_id: int, sample_data: str = F
         # real `jsonb` and supabase-py serializes Python dicts/lists natively.
         data["blow_counts"] = json.dumps(blow_counts)
         data["pen_depths"] = json.dumps(pen_depths)
-        data["flags"] = json.dumps(data["flags"])
+        data["flags"] = json.dumps(data.get("flags") or [])
         data["layers"] = data.get("layers")
         data["project_id"] = project_id
         data["borehole_id"] = borehole_id
@@ -426,8 +455,12 @@ async def confirm_sample(project_id: int, borehole_id: int, sample_data: str = F
         return {"saved": True, "sample_id": result.data[0]["id"]}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        # Log the real error server-side; return a generic message to clients
+        # so Postgres constraint text (column names, CHECK contents, etc.)
+        # doesn't leak via the API.
+        logging.exception("confirm_sample failed")
+        raise HTTPException(status_code=500, detail="Failed to save sample — see server logs.")
 
 @app.patch("/projects/{project_id}/boreholes/{borehole_id}/samples/{sample_id}/layers")
 async def patch_layer_depths(project_id: int, borehole_id: int, sample_id: int, data: LayerDepthPatchRequest):
