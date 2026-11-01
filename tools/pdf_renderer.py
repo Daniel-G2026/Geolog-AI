@@ -34,13 +34,13 @@ USABLE_W = PAGE_W - 2 * MARGIN
 SCALE_PT_PER_FT = 0.45 * inch
 
 COL_WIDTHS = {
-    "depth":    0.55 * inch,
+    "depth":    0.50 * inch,
     "sample":   0.55 * inch,
-    "desc":     3.05 * inch,
-    "blows":    0.70 * inch,
-    "n":        0.35 * inch,
-    "rec":      0.50 * inch,
-    "comments": 1.80 * inch,
+    "desc":     2.75 * inch,
+    "blows":    0.75 * inch,
+    "n":        0.55 * inch,   # widened — fits "N-Value" header without overlap
+    "rec":      0.70 * inch,   # widened — fits "Recovery (in)" header without overlap
+    "comments": 1.70 * inch,
 }
 
 HEADER_BG = colors.HexColor("#2C3E50")
@@ -196,8 +196,17 @@ def _draw_column_headers(c: canvas.Canvas, y_top: float, firm: FirmStyle) -> flo
     for name in order:
         x, w = cols[name]
         label = firm.column_labels[name]
-        tw = c.stringWidth(label, "Helvetica-Bold", FS_BODY)
+        # Auto-shrink the font if a firm style happens to ship a label wider than
+        # its column. Defensive — current configs fit at FS_BODY but future
+        # firms may add verbose headers we'd rather scale than truncate.
+        font_size = FS_BODY
+        tw = c.stringWidth(label, "Helvetica-Bold", font_size)
+        while tw > w - 2 and font_size > 5:
+            font_size -= 0.5
+            c.setFont("Helvetica-Bold", font_size)
+            tw = c.stringWidth(label, "Helvetica-Bold", font_size)
         c.drawString(x + (w - tw) / 2, bottom + 5, label)
+        c.setFont("Helvetica-Bold", FS_BODY)  # restore for subsequent labels
     c.setStrokeColor(colors.white)
     c.setLineWidth(0.4)
     for name in order[1:]:
