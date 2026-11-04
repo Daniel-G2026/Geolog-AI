@@ -24,6 +24,23 @@ load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 
+def _extract_text(message) -> str:
+    """Pulls the text out of a Claude response. Don't assume content[0] is
+    text — models with extended thinking (e.g. claude-sonnet-5-5,
+    claude-haiku-5-5) put a ThinkingBlock first."""
+    text_blocks = [block.text for block in message.content if getattr(block, "type", None) == "text"]
+    return "\n".join(text_blocks).strip()
+
+
+def _strip_wrapping_quotes(text: str) -> str:
+    """Claude sometimes wraps a formatted description in literal quote marks
+    despite being told to return only the string itself. Strip one layer of
+    matching leading/trailing quotes defensively."""
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in ('"', "'"):
+        return text[1:-1].strip()
+    return text
+
+
 # ─────────────────────────────────────────────
 # ENVISION FORMATTING PROMPT
 # Claude's role is FORMATTING ONLY.
@@ -185,10 +202,7 @@ def extract_description_fields(description_segment: str) -> dict:
     )
 
     try:
-        # Don't assume content[0] is text — models that emit extended-thinking
-        # blocks (e.g. claude-haiku-5-5) put a ThinkingBlock first.
-        text_blocks = [block.text for block in message.content if getattr(block, "type", None) == "text"]
-        raw = "\n".join(text_blocks).strip()
+        raw = _extract_text(message)
         # Strip markdown code fences if Claude adds them
         raw = raw.replace("```json", "").replace("```", "").strip()
         return json.loads(raw)
@@ -472,12 +486,12 @@ def combination(transcript: str, blow_counts: list,
             }
 
             message = client.messages.create(
-                model="claude-sonnet-4-6",
+                model="claude-sonnet-5-5",
                 max_tokens=1024,
                 system=ASTM_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": f"Structured soil data:{json.dumps(soil_data, indent=2)}"}],
             )
-            layer_desc = message.content[0].text
+            layer_desc = _strip_wrapping_quotes(_extract_text(message))
             if lf.get("depth_start") is not None and lf.get("depth_end") is not None:
                 ds = lf['depth_start']
                 de = lf['depth_end']
@@ -608,12 +622,12 @@ def combination(transcript: str, blow_counts: list,
 
         # Step 10 — Claude formatting
         message = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-5-5",
             max_tokens=1024,
             system=ASTM_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": f"Structured soil data:{json.dumps(soil_data, indent=2)}"}],
         )
-        description = message.content[0].text
+        description = _strip_wrapping_quotes(_extract_text(message))
 
         # Surface structured fields at the top level for persistence.
         top_soil_name = fields.get("soil_name")
