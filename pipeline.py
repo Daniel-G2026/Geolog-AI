@@ -67,7 +67,7 @@ FORMAT RULES:
 9. Return only the final formatted description string.
 
 SPECIAL HANDLING:
-- Components should read naturally: "with trace sand", "some gravel", "trace organics"
+- Components should read naturally: "trace sand", "some gravel", "trace organics"
 - Inclusions should be included only if present.
 - Do not repeat the primary soil name as a component.
 - If split_layer is true and multiple soil names are provided, join them using " / " then continue with shared descriptors.
@@ -78,11 +78,11 @@ SPECIAL HANDLING:
 - If only one soil name is present, do not use a slash.
 
 OUTPUT EXAMPLES:
-- "Silty clay (CL), with trace sand, brown, moist, stiff."
-- "Fill, sandy silt, with gravel and brick fragments, dark brown, moist."
+- "Silty clay (CL), trace sand, brown, moist, stiff."
+- "Fill, sandy silt, gravel and brick fragments, dark brown, moist."
 - "Sand and gravel, wet, dense, poorly graded."
 - "Medium to coarse sand (SP), brown, moist, compact."
-- "Fine gravel, with some sand, grey, wet, dense."
+- "Fine gravel, some sand, grey, wet, dense."
 
 """
 
@@ -100,6 +100,7 @@ Extract structured fields from a field technician's soil description.
 Return ONLY a valid JSON object with these exact keys. No explanation, no markdown, no extra text.
 
 The following are the ONLY valid primary soil names: ["silty clay", "clayey silt", "silt", "clay", "silty sand", "sandy silt", "sand and gravel", "sand"]. Any soil that matches one of these is a primary soil name, not a component.
+"till" is a depositional suffix, not a separate soil type. If the speaker says "till" immediately after a valid soil name (e.g. "silty clay till", "sandy silt till"), you MUST keep "till" as part of soil_name verbatim (e.g. soil_name: "silty clay till"). This applies even in casual, hesitant, or filler-heavy speech — "till" is never a filler word and must never be dropped. Only strip genuine disfluencies (um, uh, like, I think, kind of, basically, you know, yeah) — never strip "till".
 Fields to extract:
 - soil_name: primary soil classification (e.g. "silty clay till", "sandy silt")
 - particle_size_range: one of ["fine", "medium", "coarse", "fine to medium", "medium to coarse", "fine to coarse"] or null. Capture the speaker's particle-size modifier verbatim (e.g. "medium to coarse sand" → "medium to coarse"; "fine gravel" → "fine"). Return null if no modifier is stated. Do not invent.
@@ -177,14 +178,17 @@ def extract_description_fields(description_segment: str) -> dict:
         }
 
     message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=500,
+        model="claude-haiku-5-5",
+        max_tokens=1024,
         system=EXTRACTION_PROMPT,
         messages=[{"role": "user", "content": description_segment}]
     )
 
     try:
-        raw = message.content[0].text.strip()
+        # Don't assume content[0] is text — models that emit extended-thinking
+        # blocks (e.g. claude-haiku-5-5) put a ThinkingBlock first.
+        text_blocks = [block.text for block in message.content if getattr(block, "type", None) == "text"]
+        raw = "\n".join(text_blocks).strip()
         # Strip markdown code fences if Claude adds them
         raw = raw.replace("```json", "").replace("```", "").strip()
         return json.loads(raw)
